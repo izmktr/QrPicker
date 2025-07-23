@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import QrScanner from '@/components/QrScanner';
+import { isUrl } from '@/lib/urlUtils';
+import { UrlLink } from '@/components/UrlLink';
 
 export default function TestPage() {
   const [showScanner, setShowScanner] = useState(false);
@@ -10,7 +12,10 @@ export default function TestPage() {
   const handleScan = (data: string) => {
     setScanResult(data);
     setShowScanner(false);
-    alert(`QRコードが読み取られました: ${data}`);
+    const message = isUrl(data) 
+      ? `QRコードでURLを読み取りました:\n${data}\n\n🔗 結果エリアのリンクからアクセスできます`
+      : `QRコードを読み取りました: ${data}`;
+    alert(message);
   };
 
   return (
@@ -28,7 +33,11 @@ export default function TestPage() {
         {scanResult && (
           <div className="bg-white p-4 rounded-lg shadow">
             <h2 className="text-lg font-semibold mb-2">最後の読み取り結果:</h2>
-            <p className="break-all text-sm">{scanResult}</p>
+            {isUrl(scanResult) ? (
+              <UrlLink url={scanResult} />
+            ) : (
+              <p className="break-all text-sm text-gray-800">{scanResult}</p>
+            )}
           </div>
         )}
 
