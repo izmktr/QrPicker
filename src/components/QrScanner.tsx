@@ -1,25 +1,49 @@
-import React, { useState, useCallback } from 'react';
-import { QrReader } from 'react-qr-reader';
+'use client';
+
+import React, { useState } from 'react';
+import { useZxing } from 'react-zxing';
 
 interface QrScannerProps {
   onScan: (data: string) => void;
   onClose: () => void;
 }
 
+interface QrScannerInnerProps extends QrScannerProps {
+  facingMode: 'user' | 'environment';
+}
+
+const QrScannerInner: React.FC<QrScannerInnerProps> = ({ onScan, onClose, facingMode }) => {
+  const { ref } = useZxing({
+    onDecodeResult(result) {
+      onScan(result.getText());
+    },
+    onError(error) {
+      console.error(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      alert("カメラの起動に失敗しました。ブラウザの設定を確認してください。\n" + errorMessage);
+      onClose();
+    },
+    constraints: {
+      video: {
+        facingMode: facingMode
+      }
+    }
+  });
+
+  return (
+    <video 
+      ref={ref} 
+      style={{ 
+        width: '100%', 
+        height: '100%', 
+        objectFit: 'cover' 
+      }}
+    />
+  );
+};
+
 const QrScanner: React.FC<QrScannerProps> = ({ onScan, onClose }) => {
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
-
-  const handleScan = useCallback((data: string | null) => {
-    if (data) {
-      onScan(data);
-    }
-  }, [onScan]);
-
-  const handleError = useCallback((err: Error) => {
-    console.error(err);
-    alert("カメラの起動に失敗しました。ブラウザの設定を確認してください。\n" + err.message);
-    onClose(); // エラー時はスキャナーを閉じる
-  }, [onClose]);
 
   const toggleFacingMode = () => {
     setFacingMode(prevMode => (prevMode === 'user' ? 'environment' : 'user'));
@@ -30,21 +54,11 @@ const QrScanner: React.FC<QrScannerProps> = ({ onScan, onClose }) => {
       <div className="relative w-11/12 max-w-md bg-white rounded-lg p-4 shadow-lg">
         <h2 className="text-xl font-bold mb-4 text-center">QRコードをスキャン</h2>
         <div className="w-full aspect-square overflow-hidden rounded-md mb-4">
-          <QrReader
-            onResult={(result, error) => {
-              if (!!result) {
-                handleScan(result?.getText());
-              }
-
-              if (!!error) {
-                // console.info(error);
-              }
-            }}
-            videoContainerStyle={{ width: '100%', paddingTop: '100%', position: 'relative' }}
-            videoStyle={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
-            constraints={{
-              facingMode: facingMode
-            }}
+          <QrScannerInner 
+            key={facingMode} 
+            onScan={onScan} 
+            onClose={onClose} 
+            facingMode={facingMode} 
           />
         </div>
         <div className="flex justify-between gap-2">
