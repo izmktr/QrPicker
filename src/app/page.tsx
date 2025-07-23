@@ -8,6 +8,7 @@ import { auth, db } from '@/lib/firebase';
 import { collection, addDoc, query, where, orderBy, limit, getDocs, serverTimestamp } from 'firebase/firestore';
 import { isUrl } from '@/lib/urlUtils';
 import { UrlLink } from '@/components/UrlLink';
+import { removeDuplicateHistory, removeDuplicateFromLocalHistory, deduplicateHistory } from '@/lib/historyUtils';
 
 interface ScanHistoryItem {
   id: string;
@@ -33,18 +34,28 @@ export default function HomePage() {
     const fetchHistory = async () => {
       if (user && db) {
         try {
+          // インデックスエラーを避けるため、orderByを削除
           const q = query(
             collection(db, "scanHistory"),
             where("userId", "==", user.uid),
-            orderBy("timestamp", "desc"),
-            limit(20)
+            limit(50) // 多めに取得してクライアントサイドでソート
           );
           const querySnapshot = await getDocs(q);
           const fetchedHistory: ScanHistoryItem[] = [];
           querySnapshot.forEach((doc) => {
             fetchedHistory.push({ id: doc.id, ...doc.data() } as ScanHistoryItem);
           });
-          setHistory(fetchedHistory);
+          
+          // クライアントサイドでタイムスタンプでソート（降順）
+          const sortedHistory = fetchedHistory.sort((a, b) => {
+            const timeA = a.timestamp?.seconds || a.timestamp?.getTime?.() || 0;
+            const timeB = b.timestamp?.seconds || b.timestamp?.getTime?.() || 0;
+            return timeB - timeA;
+          });
+          
+          // 重複を削除してから設定（最新20件）
+          const deduplicatedHistory = deduplicateHistory(sortedHistory).slice(0, 20);
+          setHistory(deduplicatedHistory);
         } catch (error) {
           console.error("Error fetching history:", error);
         }
@@ -57,16 +68,23 @@ export default function HomePage() {
     setShowScanner(false);
     if (user && db) {
       try {
+        // まず既存の重複データを削除
+        await removeDuplicateHistory(user.uid, data);
+        
+        // 新しいデータを追加
         const docRef = await addDoc(collection(db, "scanHistory"), {
           userId: user.uid,
           data: data,
           timestamp: serverTimestamp(),
         });
-        // Add to local history, ensuring it doesn't exceed 20 items
+        
+        // ローカル履歴も更新（重複削除 + 新規追加）
         setHistory(prevHistory => {
-          const newHistory = [{ id: docRef.id, data, timestamp: new Date() }, ...prevHistory];
+          const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, data);
+          const newHistory = [{ id: docRef.id, data, timestamp: new Date() }, ...historyWithoutDuplicates];
           return newHistory.slice(0, 20);
         });
+        
         const message = isUrl(data) 
           ? `QRコードでURLを読み取りました:\n${data}\n\n🔗 履歴からクリックしてアクセスできます`
           : `QRコードを読み取りました: ${data}`;
@@ -76,9 +94,10 @@ export default function HomePage() {
         alert("履歴の保存に失敗しました。");
       }
     } else if (user && !db) {
-      // Firebaseが利用できない場合、ローカルのみに保存
+      // Firebaseが利用できない場合、ローカルのみに保存（重複削除）
       setHistory(prevHistory => {
-        const newHistory = [{ id: Date.now().toString(), data, timestamp: new Date() }, ...prevHistory];
+        const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, data);
+        const newHistory = [{ id: Date.now().toString(), data, timestamp: new Date() }, ...historyWithoutDuplicates];
         return newHistory.slice(0, 20);
       });
       const message = isUrl(data) 
