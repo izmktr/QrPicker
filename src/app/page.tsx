@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import QrScanner from '@/components/QrScanner';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, query, where, orderBy, limit, getDocs, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, query, where, limit, getDocs, serverTimestamp } from 'firebase/firestore';
 import { isUrl } from '@/lib/urlUtils';
 import { UrlLink } from '@/components/UrlLink';
 import { removeDuplicateHistory, removeDuplicateFromLocalHistory, deduplicateHistory } from '@/lib/historyUtils';
@@ -13,7 +13,7 @@ import { removeDuplicateHistory, removeDuplicateFromLocalHistory, deduplicateHis
 interface ScanHistoryItem {
   id: string;
   data: string;
-  timestamp: any; // Use firebase.firestore.Timestamp in real app
+  timestamp: Date | { seconds: number } | null; // Firebase Timestamp or Date
 }
 
 export default function HomePage() {
@@ -48,9 +48,14 @@ export default function HomePage() {
           
           // クライアントサイドでタイムスタンプでソート（降順）
           const sortedHistory = fetchedHistory.sort((a, b) => {
-            const timeA = a.timestamp?.seconds || a.timestamp?.getTime?.() || 0;
-            const timeB = b.timestamp?.seconds || b.timestamp?.getTime?.() || 0;
-            return timeB - timeA;
+            const getTimestamp = (timestamp: Date | { seconds: number } | null): number => {
+              if (!timestamp) return 0;
+              if (timestamp instanceof Date) return timestamp.getTime();
+              if (typeof timestamp === 'object' && 'seconds' in timestamp) return timestamp.seconds * 1000;
+              return 0;
+            };
+            
+            return getTimestamp(b.timestamp) - getTimestamp(a.timestamp);
           });
           
           // 重複を削除してから設定（最新20件）

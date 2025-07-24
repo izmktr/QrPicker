@@ -51,7 +51,7 @@ export const removeDuplicateFromLocalHistory = <T extends { data: string }>(
  * @param history 履歴配列
  * @returns 重複を削除した履歴配列
  */
-export const deduplicateHistory = <T extends { data: string; timestamp: any }>(
+export const deduplicateHistory = <T extends { data: string; timestamp: Date | { seconds: number } | null }>(
   history: T[]
 ): T[] => {
   const seen = new Set<string>();
