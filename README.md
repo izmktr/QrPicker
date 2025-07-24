@@ -226,8 +226,25 @@ src/
 
 1. [Vercel](https://vercel.com) アカウントを作成
 2. GitHubリポジトリを接続
-3. 環境変数を Vercel の設定画面で追加
-4. 自動デプロイが開始されます
+3. 環境変数を Vercel の設定画面で追加（`.env.local`と同じ内容）
+4. **重要**: Firebase Console で以下を設定：
+   - **Authentication** → **Settings** → **Authorized domains** に Vercel ドメインを追加
+   - **Authentication** → **Sign-in method** → **Google** の承認済みドメインにも追加
+5. 自動デプロイが開始されます
+
+#### Vercelデプロイ時のFirebase設定
+
+**Firebase Console での追加設定:**
+1. **Authentication** → **Settings** → **Authorized domains**
+   - あなたのVercelドメイン（例：`your-app.vercel.app`）を追加
+2. **Authentication** → **Sign-in method** → **Google**
+   - 承認済みのJavaScriptの生成元: `https://your-app.vercel.app`
+   - 承認済みのリダイレクトURI: `https://your-app.vercel.app/__/auth/handler`
+
+**トラブルシューティング:**
+- ログインエラーが発生する場合は、ブラウザの開発者ツールでコンソールログを確認
+- Firebase設定の環境変数がVercelで正しく設定されているか確認
+- Firebase Console のドメイン設定を再確認
 
 詳細は [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) を参照してください。
 
