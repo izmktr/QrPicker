@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  /* PWA configuration without external dependencies */
+  experimental: {
+    webpackBuildWorker: true,
+  },
+  /* Other config options here */
 };
 
 export default nextConfig;

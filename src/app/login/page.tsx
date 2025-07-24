@@ -27,9 +27,10 @@ export default function LoginPage() {
     try {
       await signInWithPopup(auth, provider);
       // Redirection handled by useEffect
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error signing in with Google: ", error);
-      alert("ログインに失敗しました。\n" + error.message);
+      const errorMessage = error instanceof Error ? error.message : 'ログインエラーが発生しました';
+      alert("ログインに失敗しました。\n" + errorMessage);
     }
   };
 
