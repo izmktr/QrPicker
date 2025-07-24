@@ -15,14 +15,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "QR Picker",
+  title: "QuickPick",
   description: "QRコードを読み取り、履歴を管理できるモダンなウェブアプリケーション",
   manifest: "/manifest.json",
   themeColor: "#10b981",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "QR Picker",
+    title: "QuickPick",
   },
   viewport: {
     width: "device-width",
@@ -53,7 +53,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#10b981" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="QR Picker" />
+        <meta name="apple-mobile-web-app-title" content="QuickPick" />
         <link rel="manifest" href="/manifest.json" />
         <link rel="icon" href="/icon-192x192.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/icon-192x192.svg" />

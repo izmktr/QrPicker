@@ -217,7 +217,7 @@ export default function HomePage() {
             認証機能と履歴保存機能を使用するには、<code>.env.local</code>ファイルを作成してFirebaseの設定を追加してください。
           </p>
         </div>
-        <h1 className="text-3xl font-bold mb-4">QR Picker (デモモード)</h1>
+        <h1 className="text-3xl font-bold mb-4">QuickPick (デモモード)</h1>
         <button
           onClick={() => setShowScanner(true)}
           className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out mb-4"
