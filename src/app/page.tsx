@@ -13,6 +13,7 @@ import { removeDuplicateHistory, removeDuplicateFromLocalHistory, deduplicateHis
 interface ScanHistoryItem {
   id: string;
   data: string;
+  title?: string;
   timestamp: any; // Use firebase.firestore.Timestamp in real app
 }
 
@@ -70,23 +71,42 @@ export default function HomePage() {
       try {
         // まず既存の重複データを削除
         await removeDuplicateHistory(user.uid, data);
-        
+
+        let title = '';
+        if (isUrl(data)) {
+          try {
+            const res = await fetch('/api/get-title', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: data }),
+            });
+            if (res.ok) {
+              const result = await res.json();
+              title = result.title || '';
+            }
+          } catch (e) {
+            // タイトル取得失敗時は空欄
+            title = '';
+          }
+        }
+
         // 新しいデータを追加
         const docRef = await addDoc(collection(db, "scanHistory"), {
           userId: user.uid,
           data: data,
+          title,
           timestamp: serverTimestamp(),
         });
-        
+
         // ローカル履歴も更新（重複削除 + 新規追加）
         setHistory(prevHistory => {
           const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, data);
-          const newHistory = [{ id: docRef.id, data, timestamp: new Date() }, ...historyWithoutDuplicates];
+          const newHistory = [{ id: docRef.id, data, title, timestamp: new Date() }, ...historyWithoutDuplicates];
           return newHistory.slice(0, 20);
         });
-        
-        const message = isUrl(data) 
-          ? `QRコードでURLを読み取りました:\n${data}\n\n🔗 履歴からクリックしてアクセスできます`
+
+        const message = isUrl(data)
+          ? `QRコードでURLを読み取りました:\n${data}\nタイトル: ${title}\n\n🔗 履歴からクリックしてアクセスできます`
           : `QRコードを読み取りました: ${data}`;
         alert(message);
       } catch (e) {
@@ -100,12 +120,12 @@ export default function HomePage() {
         const newHistory = [{ id: Date.now().toString(), data, timestamp: new Date() }, ...historyWithoutDuplicates];
         return newHistory.slice(0, 20);
       });
-      const message = isUrl(data) 
+      const message = isUrl(data)
         ? `QRコードでURLを読み取りました:\n${data}\n\n🔗 クリックしてアクセスできます\n(注意: Firebaseが設定されていないため、履歴はローカルのみに保存されます)`
         : `QRコードを読み取りました: ${data}\n(注意: Firebaseが設定されていないため、履歴はローカルのみに保存されます)`;
       alert(message);
     } else {
-      const message = isUrl(data) 
+      const message = isUrl(data)
         ? `QRコードでURLを読み取りました:\n${data}\n\n🔗 ブラウザでアクセスできます\n(注意: ログインしていないため履歴は保存されません)`
         : `QRコードを読み取りました: ${data}\n(注意: ログインしていないため履歴は保存されません)`;
       alert(message);
@@ -189,7 +209,12 @@ export default function HomePage() {
             {history.map((item) => (
               <li key={item.id} className="bg-gray-50 p-2 rounded-md">
                 {isUrl(item.data) ? (
-                  <UrlLink url={item.data} />
+                  <div>
+                    <UrlLink url={item.data} />
+                    {item.title && (
+                      <div className="text-xs text-gray-500 mt-1">{item.title}</div>
+                    )}
+                  </div>
                 ) : (
                   <span className="text-gray-800 break-all text-sm">{item.data}</span>
                 )}
