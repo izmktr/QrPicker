@@ -89,6 +89,79 @@ export default function HomePage() {
     fetchHistory();
   }, [user]);
 
+  // 共有されたURLを処理する
+  useEffect(() => {
+    const handleSharedUrl = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sharedUrl = urlParams.get('shared_url');
+      const sharedTitle = urlParams.get('shared_title');
+
+      if (sharedUrl) {
+        // URLパラメータをクリア
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('shared_url');
+        newUrl.searchParams.delete('shared_title');
+        window.history.replaceState({}, '', newUrl.toString());
+
+        // 共有されたURLを履歴に追加
+        if (user && db) {
+          try {
+            // 既存の重複データを削除
+            await removeDuplicateHistory(user.uid, sharedUrl);
+
+            // タイトルが提供されていない場合は取得を試行
+            let title = sharedTitle || '';
+            if (!title && isUrl(sharedUrl)) {
+              try {
+                const res = await fetch('/api/get-title', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ url: sharedUrl }),
+                });
+                if (res.ok) {
+                  const result = await res.json();
+                  title = result.title || '';
+                }
+              } catch (e) {
+                title = '';
+              }
+            }
+
+            // Firebaseに保存
+            const docRef = await addDoc(collection(db, "scanHistory"), {
+              userId: user.uid,
+              data: sharedUrl,
+              title,
+              timestamp: serverTimestamp(),
+            });
+
+            // ローカル履歴も更新
+            setHistory(prevHistory => {
+              const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, sharedUrl);
+              const newHistory = [{ id: docRef.id, data: sharedUrl, title, timestamp: new Date() }, ...historyWithoutDuplicates];
+              return newHistory.slice(0, 20);
+            });
+
+            showNotification('Safariから共有されたページを履歴に追加しました', 'success', true, sharedUrl);
+          } catch (error) {
+            console.error('Error saving shared URL:', error);
+            showNotification('共有されたページの保存に失敗しました', 'warning');
+          }
+        } else {
+          // ログインしていない場合はローカルのみに保存
+          setHistory(prevHistory => {
+            const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, sharedUrl);
+            const newHistory = [{ id: Date.now().toString(), data: sharedUrl, title: sharedTitle || undefined, timestamp: new Date() }, ...historyWithoutDuplicates];
+            return newHistory.slice(0, 20);
+          });
+          showNotification('Safariから共有されたページを履歴に追加しました（ローカル保存）', 'info', true, sharedUrl);
+        }
+      }
+    };
+
+    handleSharedUrl();
+  }, [user, showNotification]);
+
   const handleScan = useCallback(async (data: string) => {
     setShowScanner(false);
     if (user && db) {
