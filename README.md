@@ -1,19 +1,20 @@
+
 # Quick Pick
 
 QRコードを読み取り、履歴を管理できるモダンなウェブアプリケーションです。
 
 ## 概要
 
-Quick Pickは、カメラを使用してQRコードを読み取り、結果を履歴として保存・管理できるアプリケーションです。URLの場合は直接アクセス可能なリンクとして表示され、重複する履歴は自動的に整理されます。
+Quick Pickは、カメラでQRコードを読み取り、履歴として保存・管理できるアプリです。URLの場合はページタイトルを自動取得し、履歴に「タイトル＋URL」を大きく見やすく表示します。重複履歴は自動整理され、Google認証でクラウド同期も可能です。
 
 ### 主な機能
 
-- 📱 **リアルタイムQRコードスキャン**: カメラを使用してQRコードを瞬時に読み取り
-- 🔗 **URLリンク対応**: 読み取り結果がURLの場合、クリック可能なリンクとして表示
-- 📝 **履歴管理**: 読み取り結果を自動保存し、重複は最新のもののみを保持
-- 🔄 **カメラ切り替え**: 前面・背面カメラの切り替えが可能
-- 🔐 **Google認証**: Firebaseを使用した安全な認証システム
-- 💾 **クラウド同期**: Firestoreによる履歴のクラウド保存
+- 📱 **リアルタイムQRコードスキャン**: カメラでQRコードを瞬時に読み取り
+- 🔗 **URLタイトル表示**: URLの場合はページタイトルを自動取得し、履歴に大きく表示
+- 📝 **履歴管理**: 読み取り結果を自動保存し、重複は最新のみ保持
+- 🔄 **カメラ切り替え**: 前面・背面カメラの切り替え
+- 🔐 **Google認証**: Firebaseによる安全な認証
+- 💾 **クラウド同期**: Firestoreで履歴をクラウド保存
 - 📱 **レスポンシブデザイン**: モバイル・デスクトップ両対応
 - 🎯 **デモモード**: Firebase設定なしでも基本機能を体験可能
 
@@ -25,131 +26,152 @@ Quick Pickは、カメラを使用してQRコードを読み取り、結果を�
 - **認証・データベース**: Firebase (Authentication + Firestore)
 - **デプロイ**: Vercel対応
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+> This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
 
 ## セットアップ手順
 
 ### 前提条件
 
-- Node.js 18.0 以上
+- Node.js 18.0以上
 - npm, yarn, pnpm, または bun
-- モダンなウェブブラウザ（カメラアクセス対応）
+- カメラアクセス可能なモダンブラウザ
 
-### 1. プロジェクトのクローンと依存関係のインストール
+### 1. プロジェクトのクローンと依存関係インストール
 
 ```bash
-# リポジトリをクローン
 git clone https://github.com/izmktr/QrPicker.git
 cd QrPicker
-
-# 依存関係をインストール
-npm install
-# または
-yarn install
-# または
-pnpm install
-# または
-bun install
+npm install # または yarn/pnpm/bun
 ```
 
-### 2. Firebaseのセットアップ（オプション）
+### 2. Firebaseのセットアップ（任意）
 
-⚠️ **注意**: Firebaseの設定なしでも、デモモードでアプリケーションを体験できます。フル機能（認証・クラウド履歴保存）を使用する場合のみ、以下の設定が必要です。
+Firebase未設定でもデモモードで利用可能。Google認証・クラウド履歴保存を使う場合のみ必要です。
 
-このアプリケーションは、認証とデータベースのためにFirebaseを使用します。
+1. [Firebase Console](https://console.firebase.google.com/)で新規プロジェクト作成
+2. Authentication → Sign-in method → Googleプロバイダー有効化
+3. Firestore Database → データベース作成（本番モード推奨）
+4. プロジェクト設定 → 「ウェブアプリ追加」でfirebaseConfig取得
+5. プロジェクト直下に `.env.local` を作成し、下記内容を記入
 
-#### 前提条件
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY="your-api-key"
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="your-project.firebaseapp.com"
+NEXT_PUBLIC_FIREBASE_PROJECT_ID="your-project-id"
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="your-project.appspot.com"
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="123456789"
+NEXT_PUBLIC_FIREBASE_APP_ID="1:123456789:web:abcdef123456"
+```
 
-1.  **Firebaseプロジェクトの作成:**
-    *   [Firebase Console](https://console.firebase.google.com/) にアクセス
-    *   「プロジェクトを追加」をクリックし、画面の指示に従ってプロジェクトを作成
+6. Firestoreセキュリティルール例
 
-2.  **必要なサービスの有効化:**
-    *   作成したFirebaseプロジェクトで、「ビルド」セクションに移動
-    *   **Authentication:**
-        *   「Authentication」→「Sign-in method」に移動
-        *   **Google** プロバイダーを有効にする
-    *   **Firestore Database:**
-        *   「Firestore Database」→「データベースの作成」に移動
-        *   **本番環境モード**で開始
-        *   データベースのロケーションを選択
-        *   セキュリティルール（後述）を設定
-
-#### 設定手順
-
-1.  **Firebase設定情報の取得**
-    *   Firebaseコンソールで、プロジェクトの「設定」（⚙️）→「プロジェクトの設定」に移動
-    *   「全般」タブの「マイアプリ」で、ウェブアイコン (`</>`) をクリックして新しいウェブアプリを作成
-    *   アプリにニックネームを付けて「アプリを登録」をクリック
-    *   表示される `firebaseConfig` オブジェクトの内容をコピー
-
-2.  **環境変数ファイル（.env.local）の作成**
-    *   プロジェクトのルートディレクトリに `.env.local` ファイルを作成
-    *   取得したFirebaseの設定値を、`NEXT_PUBLIC_` プレフィックス付きで追加:
-
-    ```env
-    # .env.local
-    NEXT_PUBLIC_FIREBASE_API_KEY="your-api-key"
-    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="your-project.firebaseapp.com"
-    NEXT_PUBLIC_FIREBASE_PROJECT_ID="your-project-id"
-    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="your-project.appspot.com"
-    NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="123456789"
-    NEXT_PUBLIC_FIREBASE_APP_ID="1:123456789:web:abcdef123456"
-    ```
-    
-    ⚠️ **重要**: 上記の値を実際のFirebaseプロジェクトの値に置き換えてください。
-
-    💡 **ヒント**: `src/lib/firebase.ts` は、これらの環境変数を自動的に読み込みます。
-
-    🔒 **セキュリティ**: `.env.local` ファイルは `.gitignore` に追加済みで、Gitで追跡されません。
-
-3.  **Firestoreセキュリティルールの設定**
-    *   Firebase Console → Firestore Database → ルール タブ
-    *   以下のルールを設定:
-    
-    ```javascript
-    rules_version = '2';
-    service cloud.firestore {
-      match /databases/{database}/documents {
-        // scanHistory コレクション: 認証済みユーザーのみ、自分のデータのみアクセス可能
-        match /scanHistory/{document} {
-          allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
-          allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
-        }
-      }
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /scanHistory/{document} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
     }
-    ```
+  }
+}
+```
 
-4.  **Firestoreインデックスの設定**
-    *   アプリケーション初回実行時、コンソールにインデックス作成のエラーメッセージが表示される場合があります
-    *   エラーメッセージ内のリンクをクリックして、Firebase Consoleで必要なインデックスを作成
-    *   これは履歴機能で使用する複合クエリ（`userId` + `timestamp`）に必要です
+7. インデックスエラーが出た場合は、Firebase Consoleのリンクから複合インデックスを作成
 
-### 3. 開発サーバーの起動
+### 3. 開発サーバー起動
 
 ```bash
-npm run dev
-# または
-yarn dev
-# または
-pnpm dev
-# または
-bun dev
+npm run dev # または yarn/pnpm/bun
 ```
 
-🌐 ブラウザで [http://localhost:3000](http://localhost:3000) を開いてください。
+http://localhost:3000 をブラウザで開く
 
 ### 4. 使用方法
 
-1. **デモモード** (Firebase設定なし):
-   - 基本的なQRコードスキャン機能
-   - ローカル履歴保存（ブラウザセッション中のみ）
+- **デモモード**（Firebase未設定）: QRコードスキャン＋ローカル履歴保存
+- **フルモード**（Firebase設定済）: Googleログイン＋クラウド履歴保存＋デバイス間同期
 
-2. **フルモード** (Firebase設定あり):
-   - Googleアカウントでログイン
-   - QRコードスキャン
-   - クラウドでの履歴保存・同期
-   - デバイス間での履歴共有
+## 履歴表示仕様
+
+- URLの場合はページタイトルを自動取得し、履歴に「タイトル（大きく濃い文字）＋URL（クリップアイコン付き）」で表示
+- QRコード内容がURL以外の場合はそのままテキスト表示
+- 履歴は重複排除・最新20件のみ表示
+
+## 使用可能なスクリプト
+
+```bash
+npm run dev       # 開発サーバー起動
+npm run build     # 本番ビルド作成
+npm run start     # 本番ビルド起動
+npm run lint      # ESLint実行
+```
+
+## プロジェクト構造
+
+src/
+├── app/                    # Next.js App Router
+│   ├── layout.tsx         # ルートレイアウト
+│   ├── page.tsx           # メインページ
+│   ├── login/             # ログインページ
+│   └── test/              # テストページ
+├── components/            # Reactコンポーネント
+│   ├── QrScanner.tsx      # QRスキャナー
+│   ├── UrlLink.tsx        # URLリンク＋タイトル表示
+│   └── ClientAuthProvider.tsx # 認証プロバイダー
+├── contexts/              # Reactコンテキスト
+│   └── AuthContext.tsx    # 認証コンテキスト
+└── lib/                   # ユーティリティ
+    ├── firebase.ts        # Firebase設定
+    ├── urlUtils.ts        # URL判定・リンク
+    └── historyUtils.ts    # 履歴重複排除
+
+## 技術的な特徴
+
+### QRコードスキャン
+- `react-zxing`でリアルタイム検出
+- 前面・背面カメラ切り替え
+
+### 履歴管理
+- 履歴はFirestoreまたはローカル保存
+- URLはタイトル付きで表示
+- 重複履歴は自動削除
+
+### 認証
+- Firebase Authentication（Googleログイン）
+- ユーザーごとに履歴分離
+
+### レスポンシブデザイン
+- Tailwind CSSでモバイル・PC両対応
+
+## デプロイ
+
+### Vercelでのデプロイ（推奨）
+
+1. [Vercel](https://vercel.com)でアカウント作成
+2. GitHubリポジトリを接続
+3. Vercelの環境変数設定画面で`.env.local`と同じ内容を追加
+4. Firebase Consoleで以下を追加設定：
+   - Authentication → Settings → Authorized domains にVercelドメイン追加
+   - Authentication → Sign-in method → Googleの承認済みドメインにも追加
+5. 自動デプロイ開始
+
+#### Firebase設定（Vercel用）
+
+1. Authentication → Settings → Authorized domains
+   - 例：`your-app.vercel.app` を追加
+2. Authentication → Sign-in method → Google
+   - 承認済みJavaScript生成元: `https://your-app.vercel.app`
+   - 承認済みリダイレクトURI: `https://your-app.vercel.app/__/auth/handler`
+
+#### トラブルシューティング
+
+- ログインエラー時はブラウザのコンソールログを確認
+- Vercelの環境変数が正しいか確認
+- Firebase Consoleのドメイン設定を再確認
+
+詳細は [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) を参照してください。
 
 ## 使用可能なスクリプト
 
@@ -248,23 +270,22 @@ src/
 
 詳細は [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) を参照してください。
 
+
 ## ライセンス
 
 MIT License
 
 ## 貢献
 
-プルリクエストや Issue の報告を歓迎します！
+バグ報告・機能提案・プルリクエスト歓迎です！
 
 ## 参考資料
 
-## 参考資料
-
-- [Next.js Documentation](https://nextjs.org/docs) - Next.js の機能とAPI
-- [Learn Next.js](https://nextjs.org/learn) - インタラクティブなNext.jsチュートリアル
-- [Firebase Documentation](https://firebase.google.com/docs) - Firebase の使用方法
-- [react-zxing](https://www.npmjs.com/package/react-zxing) - QRコードスキャンライブラリ
-- [Tailwind CSS](https://tailwindcss.com/docs) - スタイリングフレームワーク
+- [Next.js Documentation](https://nextjs.org/docs) - Next.js公式ドキュメント
+- [Learn Next.js](https://nextjs.org/learn) - Next.jsチュートリアル
+- [Firebase Documentation](https://firebase.google.com/docs) - Firebase公式
+- [react-zxing](https://www.npmjs.com/package/react-zxing) - QRコードスキャン
+- [Tailwind CSS](https://tailwindcss.com/docs) - CSSフレームワーク
 
 ---
 

@@ -1,6 +1,6 @@
 {
-  "name": "QR Picker",
-  "short_name": "QRPicker",
+  "name": "QuickPick",
+  "short_name": "QuickPick",
   "description": "QRコードを読み取り、履歴を管理できるモダンなウェブアプリケーション",
   "start_url": "/",
   "display": "standalone",

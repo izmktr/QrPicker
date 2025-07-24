@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     const res = await fetch(url, {
       method: 'GET',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; QrPicker/1.0)',
+        'User-Agent': 'Mozilla/5.0 (compatible; QuickPick/1.0)',
         'Accept': 'text/html',
       },
       // リダイレクトも追従

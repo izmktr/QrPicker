@@ -49,13 +49,6 @@ export default function HomePage() {
     setNotification(null);
   }, []);
 
-  // Redirect if not logged in (only if Firebase is available)
-  useEffect(() => {
-    if (!loading && !user && auth) {
-      router.push('/login');
-    }
-  }, [user, loading, router]);
-
   // Fetch history on user change or component mount
   useEffect(() => {
     const fetchHistory = async () => {
@@ -167,8 +160,15 @@ export default function HomePage() {
   }, [user, showNotification]);
 
   const handleLogout = async () => {
-    // Implement Firebase logout here
-    // For now, just redirect to login
+    // Firebaseログアウト処理
+    try {
+      if (auth) {
+        const { signOut } = await import('firebase/auth');
+        await signOut(auth);
+      }
+    } catch (e) {
+      console.error('Logout failed:', e);
+    }
     router.push('/login');
   };
 
@@ -176,8 +176,9 @@ export default function HomePage() {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
 
-  // Firebaseが設定されていない場合の処理
-  if (!db) {
+
+  // ログインしていない場合 or Firebase未設定の場合は必ずデモモードUIを表示
+  if (!user || !db) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
         {/* 通知表示 */}
@@ -210,13 +211,15 @@ export default function HomePage() {
             </div>
           </div>
         )}
-        
-        <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4 max-w-md">
-          <p className="text-sm">
-            <strong>注意:</strong> Firebaseが設定されていません。<br/>
-            認証機能と履歴保存機能を使用するには、<code>.env.local</code>ファイルを作成してFirebaseの設定を追加してください。
-          </p>
-        </div>
+        {/* Firebase未設定時のみ注意表示 */}
+        {!db && (
+          <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4 max-w-md">
+            <p className="text-sm">
+              <strong>注意:</strong> Firebaseが設定されていません。<br/>
+              認証機能と履歴保存機能を使用するには、<code>.env.local</code>ファイルを作成してFirebaseの設定を追加してください。
+            </p>
+          </div>
+        )}
         <h1 className="text-3xl font-bold mb-4">QuickPick (デモモード)</h1>
         <button
           onClick={() => setShowScanner(true)}
@@ -244,19 +247,23 @@ export default function HomePage() {
           )}
         </div>
 
+        <button
+          onClick={() => router.push('/login')}
+          className="mt-8 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+        >
+          ログイン画面へ
+        </button>
+
         {showScanner && (
           <QrScanner onScan={handleScan} onClose={() => setShowScanner(false)} />
         )}
-        
+
         <InstallPrompt />
       </div>
     );
   }
 
-  if (!user) {
-    return null; // Redirect will happen
-  }
-
+  // ログイン済みの場合は通常UI（Firebase連携あり）
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
       {/* 通知表示 */}

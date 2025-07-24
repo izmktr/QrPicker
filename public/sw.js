@@ -1,4 +1,4 @@
-const CACHE_NAME = 'qr-picker-v1';
+const CACHE_NAME = 'quick-pick-v1';
 const urlsToCache = [
   '/',
   '/login',

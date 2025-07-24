@@ -11,10 +11,14 @@ export default function LoginPage() {
   const { user, loading } = useAuth();
 
   useEffect(() => {
+    // ログイン済みの場合のみリダイレクト
     if (!loading && user) {
-      // User is logged in, redirect to home
-      router.push('/');
+      // すでにトップページの場合は何もしない
+      if (window.location.pathname !== '/') {
+        router.push('/');
+      }
     }
+    // userがnull（未ログイン）の場合は何もしない（デモモードで続行可能）
   }, [user, loading, router]);
 
   const handleGoogleLogin = async () => {
@@ -64,9 +68,15 @@ export default function LoginPage() {
       <h1 className="text-3xl font-bold mb-6">QuickPickへようこそ</h1>
       <button
         onClick={handleGoogleLogin}
-        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out mb-4"
       >
         Googleでログイン
+      </button>
+      <button
+        onClick={() => router.push('/')}
+        className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+      >
+        デモモードで続行
       </button>
     </div>
   );
