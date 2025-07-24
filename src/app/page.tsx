@@ -14,10 +14,7 @@ import { removeDuplicateHistory, removeDuplicateFromLocalHistory, deduplicateHis
 interface ScanHistoryItem {
   id: string;
   data: string;
-<<<<<<< HEAD
   title?: string;
-  timestamp: any; // Use firebase.firestore.Timestamp in real app
-=======
   timestamp: Date | { seconds: number } | null; // Firebase Timestamp or Date
 }
 
@@ -27,7 +24,6 @@ interface NotificationMessage {
   type: 'success' | 'info' | 'warning';
   isUrl?: boolean;
   url?: string;
->>>>>>> a48d5c433277614602401ce945a3a134254f0719
 }
 
 export default function HomePage() {
@@ -311,12 +307,7 @@ export default function HomePage() {
             {history.map((item) => (
               <li key={item.id} className="bg-gray-50 p-2 rounded-md">
                 {isUrl(item.data) ? (
-                  <div>
-                    <UrlLink url={item.data} />
-                    {item.title && (
-                      <div className="text-xs text-gray-500 mt-1">{item.title}</div>
-                    )}
-                  </div>
+                  <UrlLink url={item.data} title={item.title} />
                 ) : (
                   <span className="text-gray-800 break-all text-sm">{item.data}</span>
                 )}

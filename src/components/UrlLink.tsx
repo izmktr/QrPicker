@@ -2,10 +2,11 @@ import React from 'react';
 
 interface UrlLinkProps {
   url: string;
+  title?: string;
   className?: string;
 }
 
-export const UrlLink: React.FC<UrlLinkProps> = ({ url, className = '' }) => {
+export const UrlLink: React.FC<UrlLinkProps> = ({ url, title, className = '' }) => {
   const getUrlTarget = (url: string): string => {
     try {
       const urlObj = new URL(url);
@@ -24,8 +25,11 @@ export const UrlLink: React.FC<UrlLinkProps> = ({ url, className = '' }) => {
   const target = getUrlTarget(url);
   
   return (
-    <div className={`flex items-start gap-2 ${className}`}>
-      <div className="flex-shrink-0 mt-0.5">
+    <div className={className}>
+      {title && (
+        <div className="font-bold text-lg text-gray-900 mb-1 break-all">{title}</div>
+      )}
+      <div className="flex items-center gap-2">
         <svg 
           className="w-4 h-4 text-blue-600" 
           fill="none" 
@@ -39,8 +43,6 @@ export const UrlLink: React.FC<UrlLinkProps> = ({ url, className = '' }) => {
             d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" 
           />
         </svg>
-      </div>
-      <div className="flex-1 min-w-0">
         <a 
           href={url} 
           target={target}
@@ -49,11 +51,6 @@ export const UrlLink: React.FC<UrlLinkProps> = ({ url, className = '' }) => {
         >
           {url}
         </a>
-        {target === '_blank' && (
-          <p className="text-xs text-gray-500 mt-1">
-            🔗 外部リンク (新しいタブで開きます)
-          </p>
-        )}
       </div>
     </div>
   );
