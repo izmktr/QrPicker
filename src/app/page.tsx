@@ -8,6 +8,7 @@ import { auth, db } from '@/lib/firebase';
 import { collection, addDoc, query, where, limit, getDocs, serverTimestamp } from 'firebase/firestore';
 import { isUrl } from '@/lib/urlUtils';
 import { UrlLink } from '@/components/UrlLink';
+import { InstallPrompt } from '@/components/InstallPrompt';
 import { removeDuplicateHistory, removeDuplicateFromLocalHistory, deduplicateHistory } from '@/lib/historyUtils';
 
 interface ScanHistoryItem {
@@ -227,6 +228,8 @@ export default function HomePage() {
         {showScanner && (
           <QrScanner onScan={handleScan} onClose={() => setShowScanner(false)} />
         )}
+        
+        <InstallPrompt />
       </div>
     );
   }
@@ -306,6 +309,8 @@ export default function HomePage() {
       {showScanner && (
         <QrScanner onScan={handleScan} onClose={() => setShowScanner(false)} />
       )}
+
+      <InstallPrompt />
     </div>
   );
 }
