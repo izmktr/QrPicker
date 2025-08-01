@@ -28,6 +28,11 @@ export default function LoginPage() {
     }
     
     const provider = new GoogleAuthProvider();
+    // アカウント選択画面を強制表示し、ログインIDの切り替えを可能にする
+    provider.setCustomParameters({
+      prompt: 'select_account'
+    });
+    
     try {
       await signInWithPopup(auth, provider);
       // Redirection handled by useEffect
