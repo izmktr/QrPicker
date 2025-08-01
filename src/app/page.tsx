@@ -233,16 +233,35 @@ export default function HomePage() {
   }, [user, showNotification]);
 
   const handleLogout = async () => {
-    // Firebaseログアウト処理
     try {
       if (auth) {
         const { signOut } = await import('firebase/auth');
+        
+        // ログアウト実行
         await signOut(auth);
+        
+        // 状態をクリア
+        setHistory([]);
+        setNotification(null);
+        
+        // router.pushを使用（優雅な遷移）
+        router.push('/login');
+        
+        // 念のため、少し待ってからページリロード（キャッシュクリア）
+        setTimeout(() => {
+          if (window.location.pathname === '/login') {
+            window.location.reload();
+          }
+        }, 500);
+      } else {
+        // Firebaseが設定されていない場合は単純にリダイレクト
+        router.push('/login');
       }
     } catch (e) {
       console.error('Logout failed:', e);
+      // エラーが発生した場合は強制リロード
+      window.location.href = '/login';
     }
-    router.push('/login');
   };
 
   if (loading) {
