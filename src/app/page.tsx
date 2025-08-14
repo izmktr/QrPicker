@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import QrScanner from '@/components/QrScanner';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, query, where, limit, getDocs, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, query, where, limit, getDocs, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { isUrl } from '@/lib/urlUtils';
 import { UrlLink } from '@/components/UrlLink';
 import { InstallPrompt } from '@/components/InstallPrompt';
@@ -15,6 +15,7 @@ interface ScanHistoryItem {
   id: string;
   data: string;
   title?: string;
+  memo?: string;
   timestamp: Date | { seconds: number } | null; // Firebase Timestamp or Date
 }
 
@@ -32,6 +33,9 @@ export default function HomePage() {
   const [showScanner, setShowScanner] = useState(false);
   const [history, setHistory] = useState<ScanHistoryItem[]>([]);
   const [notification, setNotification] = useState<NotificationMessage | null>(null);
+  const [editingMemo, setEditingMemo] = useState<string | null>(null);
+  const [memoText, setMemoText] = useState('');
+  const [deleteMode, setDeleteMode] = useState(false);
 
   // 通知を表示する関数
   const showNotification = useCallback((message: string, type: 'success' | 'info' | 'warning', isUrl = false, url?: string) => {
@@ -160,6 +164,76 @@ export default function HomePage() {
     };
 
     handleSharedUrl();
+  }, [user, showNotification]);
+
+  // メモを更新する関数
+  const handleUpdateMemo = useCallback(async (itemId: string, newMemo: string) => {
+    if (user && db) {
+      try {
+        // Firebaseのメモを更新
+        await updateDoc(doc(db, "scanHistory", itemId), {
+          memo: newMemo
+        });
+        
+        // ローカル履歴も更新
+        setHistory(prevHistory => 
+          prevHistory.map(item => 
+            item.id === itemId ? { ...item, memo: newMemo } : item
+          )
+        );
+        
+        showNotification('メモを更新しました', 'success');
+      } catch (error) {
+        console.error('Error updating memo:', error);
+        showNotification('メモの更新に失敗しました', 'warning');
+      }
+    } else {
+      // ログインしていない場合はローカルのみ更新
+      setHistory(prevHistory => 
+        prevHistory.map(item => 
+          item.id === itemId ? { ...item, memo: newMemo } : item
+        )
+      );
+      showNotification('メモを更新しました（ローカル）', 'info');
+    }
+    
+    // 編集状態をリセット
+    setEditingMemo(null);
+    setMemoText('');
+  }, [user, showNotification]);
+
+  // メモ編集を開始する関数
+  const handleStartEditMemo = useCallback((itemId: string, currentMemo: string) => {
+    setEditingMemo(itemId);
+    setMemoText(currentMemo || '');
+  }, []);
+
+  // メモ編集をキャンセルする関数
+  const handleCancelEditMemo = useCallback(() => {
+    setEditingMemo(null);
+    setMemoText('');
+  }, []);
+
+  // 履歴アイテムを削除する関数
+  const handleDeleteHistoryItem = useCallback(async (itemId: string, itemData: string) => {
+    if (user && db) {
+      try {
+        // Firebaseから削除
+        await deleteDoc(doc(db, "scanHistory", itemId));
+        
+        // ローカル履歴からも削除
+        setHistory(prevHistory => prevHistory.filter(item => item.id !== itemId));
+        
+        showNotification('履歴を削除しました', 'success');
+      } catch (error) {
+        console.error('Error deleting history item:', error);
+        showNotification('履歴の削除に失敗しました', 'warning');
+      }
+    } else {
+      // ログインしていない場合はローカルのみから削除
+      setHistory(prevHistory => prevHistory.filter(item => item.id !== itemId));
+      showNotification('履歴を削除しました（ローカル）', 'info');
+    }
   }, [user, showNotification]);
 
   const handleScan = useCallback(async (data: string) => {
@@ -320,31 +394,118 @@ export default function HomePage() {
           QRコードをスキャン (履歴保存なし)
         </button>
 
-        <div className="w-full max-w-md bg-white rounded-lg shadow-md p-4">
-          <h2 className="text-xl font-bold mb-2">読み取り履歴</h2>
+        <div className="w-full max-w-6xl bg-white rounded-lg shadow-md p-4">
+          <h2 className="text-xl font-bold mb-4">読み取り履歴</h2>
           {history.length === 0 ? (
             <p className="text-gray-600">履歴はありません。</p>
           ) : (
-            <ul className="space-y-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {history.map((item) => (
-                <li key={item.id} className="bg-gray-50 p-2 rounded-md">
-                  {isUrl(item.data) ? (
-                    <UrlLink url={item.data} />
-                  ) : (
-                    <span className="text-gray-800 break-all text-sm">{item.data}</span>
-                  )}
-                </li>
+                <div key={item.id} className="bg-gray-50 p-3 rounded-md border border-gray-200 flex flex-col">
+                  <div className="flex-1 mb-2">
+                    {isUrl(item.data) ? (
+                      <UrlLink url={item.data} title={item.title} />
+                    ) : (
+                      <span className="text-gray-800 break-all text-sm">{item.data}</span>
+                    )}
+                  </div>
+                  
+                  {/* メモ表示・編集部分 */}
+                  <div className="mb-2">
+                    {editingMemo === item.id ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={memoText}
+                          onChange={(e) => setMemoText(e.target.value)}
+                          placeholder="メモを入力..."
+                          className="w-full p-2 text-sm border border-gray-300 rounded resize-none"
+                          rows={2}
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleUpdateMemo(item.id, memoText)}
+                            className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
+                          >
+                            保存
+                          </button>
+                          <button
+                            onClick={handleCancelEditMemo}
+                            className="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
+                          >
+                            キャンセル
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        {item.memo ? (
+                          <div className="bg-blue-50 p-2 rounded border border-blue-200">
+                            <p className="text-xs text-blue-800 whitespace-pre-wrap">{item.memo}</p>
+                          </div>
+                        ) : (
+                          <div className="text-xs text-gray-400 italic">メモなし</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">
+                        {item.timestamp && (
+                          item.timestamp instanceof Date 
+                            ? item.timestamp.toLocaleString('ja-JP')
+                            : typeof item.timestamp === 'object' && 'seconds' in item.timestamp
+                              ? new Date(item.timestamp.seconds * 1000).toLocaleString('ja-JP')
+                              : ''
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {editingMemo !== item.id && (
+                        <button
+                          onClick={() => handleStartEditMemo(item.id, item.memo || '')}
+                          className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                          title="メモを編集"
+                        >
+                          📝 メモ
+                        </button>
+                      )}
+                      {deleteMode && (
+                        <button
+                          onClick={() => handleDeleteHistoryItem(item.id, item.data)}
+                          className="bg-red-100 hover:bg-red-200 text-red-700 px-2 py-2 rounded-lg transition-colors"
+                          title="削除"
+                        >
+                          🗑️
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </div>
 
-        <button
-          onClick={() => router.push('/login')}
-          className="mt-8 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
-        >
-          ログイン画面へ
-        </button>
+        <div className="flex gap-4 mt-8">
+          <button
+            onClick={() => router.push('/login')}
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+          >
+            ログイン画面へ
+          </button>
+          <button
+            onClick={() => setDeleteMode(!deleteMode)}
+            className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out ${
+              deleteMode 
+                ? 'bg-red-500 hover:bg-red-700 text-white' 
+                : 'bg-gray-500 hover:bg-gray-700 text-white'
+            }`}
+          >
+            {deleteMode ? '削除モード終了' : '削除モード'}
+          </button>
+        </div>
 
         {showScanner && (
           <QrScanner onScan={handleScan} onClose={() => setShowScanner(false)} />
@@ -397,32 +558,118 @@ export default function HomePage() {
         QRコードをスキャン
       </button>
 
-      <div className="w-full max-w-md bg-white rounded-lg shadow-md p-4">
-        <h2 className="text-xl font-bold mb-2">読み取り履歴</h2>
+      <div className="w-full max-w-6xl bg-white rounded-lg shadow-md p-4">
+        <h2 className="text-xl font-bold mb-4">読み取り履歴</h2>
         {history.length === 0 ? (
           <p className="text-gray-600">履歴はありません。</p>
         ) : (
-          <ul className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {history.map((item) => (
-              <li key={item.id} className="bg-gray-50 p-2 rounded-md">
-                {isUrl(item.data) ? (
-                  <UrlLink url={item.data} title={item.title} />
-                ) : (
-                  <span className="text-gray-800 break-all text-sm">{item.data}</span>
-                )}
-                {/* ゴミ箱アイコンは後で実装 */}
-              </li>
+              <div key={item.id} className="bg-gray-50 p-3 rounded-md border border-gray-200 flex flex-col">
+                <div className="flex-1 mb-2">
+                  {isUrl(item.data) ? (
+                    <UrlLink url={item.data} title={item.title} />
+                  ) : (
+                    <span className="text-gray-800 break-all text-sm">{item.data}</span>
+                  )}
+                </div>
+                
+                {/* メモ表示・編集部分 */}
+                <div className="mb-2">
+                  {editingMemo === item.id ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={memoText}
+                        onChange={(e) => setMemoText(e.target.value)}
+                        placeholder="メモを入力..."
+                        className="w-full p-2 text-sm border border-gray-300 rounded resize-none"
+                        rows={2}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleUpdateMemo(item.id, memoText)}
+                          className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
+                        >
+                          保存
+                        </button>
+                        <button
+                          onClick={handleCancelEditMemo}
+                          className="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
+                        >
+                          キャンセル
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      {item.memo ? (
+                        <div className="bg-blue-50 p-2 rounded border border-blue-200">
+                          <p className="text-xs text-blue-800 whitespace-pre-wrap">{item.memo}</p>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-gray-400 italic">メモなし</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">
+                      {item.timestamp && (
+                        item.timestamp instanceof Date 
+                          ? item.timestamp.toLocaleString('ja-JP')
+                          : typeof item.timestamp === 'object' && 'seconds' in item.timestamp
+                            ? new Date(item.timestamp.seconds * 1000).toLocaleString('ja-JP')
+                            : ''
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {editingMemo !== item.id && (
+                      <button
+                        onClick={() => handleStartEditMemo(item.id, item.memo || '')}
+                        className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                        title="メモを編集"
+                      >
+                        📝 メモ
+                      </button>
+                    )}
+                    {deleteMode && (
+                      <button
+                        onClick={() => handleDeleteHistoryItem(item.id, item.data)}
+                        className="bg-red-100 hover:bg-red-200 text-red-700 px-2 py-2 rounded-lg transition-colors"
+                        title="削除"
+                      >
+                        🗑️
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </div>
 
-      <button
-        onClick={handleLogout}
-        className="mt-8 bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
-      >
-        ログアウト
-      </button>
+      <div className="flex gap-4 mt-8">
+        <button
+          onClick={handleLogout}
+          className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+        >
+          ログアウト
+        </button>
+        <button
+          onClick={() => setDeleteMode(!deleteMode)}
+          className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out ${
+            deleteMode 
+              ? 'bg-red-500 hover:bg-red-700 text-white' 
+              : 'bg-gray-500 hover:bg-gray-700 text-white'
+          }`}
+        >
+          {deleteMode ? '削除モード終了' : '削除モード'}
+        </button>
+      </div>
 
       {showScanner && (
         <QrScanner onScan={handleScan} onClose={() => setShowScanner(false)} />
