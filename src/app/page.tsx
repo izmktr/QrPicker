@@ -36,6 +36,8 @@ export default function HomePage() {
   const [editingMemo, setEditingMemo] = useState<string | null>(null);
   const [memoText, setMemoText] = useState('');
   const [deleteMode, setDeleteMode] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
 
   // 通知を表示する関数
   const showNotification = useCallback((message: string, type: 'success' | 'info' | 'warning', isUrl = false, url?: string) => {
@@ -51,6 +53,83 @@ export default function HomePage() {
   // 通知を手動で消す関数
   const dismissNotification = useCallback(() => {
     setNotification(null);
+  }, []);
+
+  // 手入力URLを追加する関数
+  const handleAddUrl = useCallback(async () => {
+    if (!urlInput.trim()) {
+      showNotification('URLを入力してください', 'warning');
+      return;
+    }
+
+    // URLかどうかチェック
+    if (!isUrl(urlInput.trim())) {
+      showNotification('有効なURLを入力してください', 'warning');
+      return;
+    }
+
+    const url = urlInput.trim();
+    setShowUrlInput(false);
+    setUrlInput('');
+
+    // handleScanと同じ処理を実行
+    if (user && db) {
+      try {
+        // まず既存の重複データを削除
+        await removeDuplicateHistory(user.uid, url);
+
+        let title = '';
+        try {
+          const res = await fetch('/api/get-title', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url }),
+          });
+          if (res.ok) {
+            const result = await res.json();
+            title = result.title || '';
+          }
+        } catch (e) {
+          title = '';
+        }
+
+        // 新しいデータを追加
+        const docRef = await addDoc(collection(db, "scanHistory"), {
+          userId: user.uid,
+          data: url,
+          title,
+          timestamp: serverTimestamp(),
+        });
+
+        // ローカル履歴も更新（重複削除 + 新規追加）
+        setHistory(prevHistory => {
+          const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, url);
+          const newHistory = [{ id: docRef.id, data: url, title, timestamp: new Date() }, ...historyWithoutDuplicates];
+          return newHistory.slice(0, 20);
+        });
+        
+        showNotification('URLを追加しました', 'success', true, url);
+      } catch (e) {
+        console.error("Error adding document: ", e);
+        showNotification("履歴の保存に失敗しました。", 'warning');
+      }
+    } else if (user && !db) {
+      // Firebaseが利用できない場合、ローカルのみに保存（重複削除）
+      setHistory(prevHistory => {
+        const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, url);
+        const newHistory = [{ id: Date.now().toString(), data: url, timestamp: new Date() }, ...historyWithoutDuplicates];
+        return newHistory.slice(0, 20);
+      });
+      showNotification('URLを追加しました（ローカル保存）', 'info', true, url);
+    } else {
+      showNotification('URLを追加しました（履歴保存なし）', 'warning', true, url);
+    }
+  }, [urlInput, user, showNotification]);
+
+  // URL入力をキャンセルする関数
+  const handleCancelUrlInput = useCallback(() => {
+    setShowUrlInput(false);
+    setUrlInput('');
   }, []);
 
   // Fetch history on user change or component mount
@@ -387,12 +466,49 @@ export default function HomePage() {
           </div>
         )}
         <h1 className="text-3xl font-bold mb-4">QuickPick (デモモード)</h1>
-        <button
-          onClick={() => setShowScanner(true)}
-          className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out mb-4"
-        >
-          QRコードをスキャン (履歴保存なし)
-        </button>
+        <div className="flex gap-4 mb-4">
+          <button
+            onClick={() => setShowScanner(true)}
+            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+          >
+            QRコードをスキャン
+          </button>
+          <button
+            onClick={() => setShowUrlInput(true)}
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+          >
+            URLを追加
+          </button>
+        </div>
+
+        {/* URL入力フォーム */}
+        {showUrlInput && (
+          <div className="w-full max-w-md bg-white rounded-lg shadow-md p-4 mb-4">
+            <h3 className="text-lg font-bold mb-2">URLを追加</h3>
+            <input
+              type="url"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              placeholder="https://example.com"
+              className="w-full p-2 border border-gray-300 rounded mb-2"
+              onKeyDown={(e) => e.key === 'Enter' && handleAddUrl()}
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleAddUrl}
+                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded"
+              >
+                追加
+              </button>
+              <button
+                onClick={handleCancelUrlInput}
+                className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-1 px-3 rounded"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="w-full max-w-6xl bg-white rounded-lg shadow-md p-4">
           <h2 className="text-xl font-bold mb-4">読み取り履歴</h2>
@@ -551,12 +667,49 @@ export default function HomePage() {
       )}
       
       <h1 className="text-3xl font-bold mb-4">ようこそ、{user.displayName || user.email}さん！</h1>
-      <button
-        onClick={() => setShowScanner(true)}
-        className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out mb-4"
-      >
-        QRコードをスキャン
-      </button>
+      <div className="flex gap-4 mb-4">
+        <button
+          onClick={() => setShowScanner(true)}
+          className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+        >
+          QRコードをスキャン
+        </button>
+        <button
+          onClick={() => setShowUrlInput(true)}
+          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+        >
+          URLを追加
+        </button>
+      </div>
+
+      {/* URL入力フォーム */}
+      {showUrlInput && (
+        <div className="w-full max-w-md bg-white rounded-lg shadow-md p-4 mb-4">
+          <h3 className="text-lg font-bold mb-2">URLを追加</h3>
+          <input
+            type="url"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            placeholder="https://example.com"
+            className="w-full p-2 border border-gray-300 rounded mb-2"
+            onKeyDown={(e) => e.key === 'Enter' && handleAddUrl()}
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={handleAddUrl}
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded"
+            >
+              追加
+            </button>
+            <button
+              onClick={handleCancelUrlInput}
+              className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-1 px-3 rounded"
+            >
+              キャンセル
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="w-full max-w-6xl bg-white rounded-lg shadow-md p-4">
         <h2 className="text-xl font-bold mb-4">読み取り履歴</h2>
