@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // scanHistory コレクションのルール
+    match /scanHistory/{document} {
+      // 認証済みユーザーのみアクセス可能
+      allow read, write, delete: if request.auth != null 
+        && request.auth.uid == resource.data.userId;
+      
+      // 新規作成時は自分のuidを設定必須
+      allow create: if request.auth != null 
+        && request.auth.uid == request.resource.data.userId;
+        
+      // 更新時も所有者チェック
+      allow update: if request.auth != null 
+        && request.auth.uid == resource.data.userId
+        && request.auth.uid == request.resource.data.userId;
+    }
+    
+    // 他のコレクションへのアクセスは拒否
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
