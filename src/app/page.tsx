@@ -137,17 +137,23 @@ export default function HomePage() {
     const fetchHistory = async () => {
       if (user && db) {
         try {
-          // インデックスエラーを避けるため、orderByを削除
+          console.log('Fetching history for user:', user.uid);
+          
+          // より多くのデータを取得して確認
           const q = query(
             collection(db, "scanHistory"),
             where("userId", "==", user.uid),
-            limit(50) // 多めに取得してクライアントサイドでソート
+            limit(100) // 取得件数を増加
           );
           const querySnapshot = await getDocs(q);
           const fetchedHistory: ScanHistoryItem[] = [];
           querySnapshot.forEach((doc) => {
-            fetchedHistory.push({ id: doc.id, ...doc.data() } as ScanHistoryItem);
+            const data = doc.data();
+            console.log('Document data:', { id: doc.id, ...data });
+            fetchedHistory.push({ id: doc.id, ...data } as ScanHistoryItem);
           });
+          
+          console.log('Total fetched documents:', fetchedHistory.length);
           
           // クライアントサイドでタイムスタンプでソート（降順）
           const sortedHistory = fetchedHistory.sort((a, b) => {
@@ -161,12 +167,18 @@ export default function HomePage() {
             return getTimestamp(b.timestamp) - getTimestamp(a.timestamp);
           });
           
-          // 重複を削除してから設定（最新20件）
-          const deduplicatedHistory = deduplicateHistory(sortedHistory).slice(0, 20);
-          setHistory(deduplicatedHistory);
+          console.log('Sorted history length:', sortedHistory.length);
+          
+          // 表示件数を増やし、重複削除をより緩やかに（最新100件表示）
+          // 同じURLでも時間が違えば別エントリとして保持
+          const finalHistory = sortedHistory.slice(0, 100);
+          console.log('Final history length:', finalHistory.length);
+          setHistory(finalHistory);
         } catch (error) {
           console.error("Error fetching history:", error);
         }
+      } else {
+        console.log('User or db not available:', { user: !!user, db: !!db });
       }
     };
     fetchHistory();
