@@ -132,6 +132,26 @@ export default function HomePage() {
     setUrlInput('');
   }, []);
 
+  // クリップボードからURLをペーストする関数
+  const handlePasteFromClipboard = useCallback(async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const clipboardText = await navigator.clipboard.readText();
+        if (clipboardText.trim()) {
+          setUrlInput(clipboardText.trim());
+          showNotification('クリップボードからURLをペーストしました', 'info');
+        } else {
+          showNotification('クリップボードが空です', 'warning');
+        }
+      } else {
+        showNotification('このブラウザではクリップボード機能がサポートされていません', 'warning');
+      }
+    } catch (error) {
+      console.error('Clipboard access error:', error);
+      showNotification('クリップボードの読み取りに失敗しました', 'warning');
+    }
+  }, [showNotification]);
+
   // Fetch history on user change or component mount
   useEffect(() => {
     const fetchHistory = async () => {
@@ -497,14 +517,23 @@ export default function HomePage() {
         {showUrlInput && (
           <div className="w-full max-w-md bg-white rounded-lg shadow-md p-4 mb-4">
             <h3 className="text-lg font-bold mb-2">URLを追加</h3>
-            <input
-              type="url"
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              placeholder="https://example.com"
-              className="w-full p-2 border border-gray-300 rounded mb-2"
-              onKeyDown={(e) => e.key === 'Enter' && handleAddUrl()}
-            />
+            <div className="flex gap-2 mb-2">
+              <input
+                type="url"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                placeholder="https://example.com"
+                className="flex-1 p-2 border border-gray-300 rounded"
+                onKeyDown={(e) => e.key === 'Enter' && handleAddUrl()}
+              />
+              <button
+                onClick={handlePasteFromClipboard}
+                className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-3 rounded transition-colors"
+                title="ペースト"
+              >
+                📋
+              </button>
+            </div>
             <div className="flex gap-2">
               <button
                 onClick={handleAddUrl}
@@ -698,14 +727,23 @@ export default function HomePage() {
       {showUrlInput && (
         <div className="w-full max-w-md bg-white rounded-lg shadow-md p-4 mb-4">
           <h3 className="text-lg font-bold mb-2">URLを追加</h3>
-          <input
-            type="url"
-            value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
-            placeholder="https://example.com"
-            className="w-full p-2 border border-gray-300 rounded mb-2"
-            onKeyDown={(e) => e.key === 'Enter' && handleAddUrl()}
-          />
+          <div className="flex gap-2 mb-2">
+            <input
+              type="url"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              placeholder="https://example.com"
+              className="flex-1 p-2 border border-gray-300 rounded"
+              onKeyDown={(e) => e.key === 'Enter' && handleAddUrl()}
+            />
+            <button
+              onClick={handlePasteFromClipboard}
+              className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-3 rounded transition-colors"
+              title="ペースト"
+            >
+              📋
+            </button>
+          </div>
           <div className="flex gap-2">
             <button
               onClick={handleAddUrl}
