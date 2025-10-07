@@ -15,29 +15,19 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "QuickPick",
+  title: "QuickPick", // titleとdescriptionは残します
   description: "QRコードを読み取り、履歴を管理できるモダンなウェブアプリケーション",
   manifest: "/manifest.json",
-  themeColor: "#10b981",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "QuickPick",
-  },
   viewport: {
     width: "device-width",
     initialScale: 1,
     maximumScale: 1,
     userScalable: false,
   },
+  // appleWebAppとiconsはmanifest.jsonと重複するため、Next.jsのメタデータ機能に任せます
   icons: {
-    icon: [
-      { url: "/icon-192x192.svg", sizes: "192x192", type: "image/svg+xml" },
-      { url: "/icon-512x512.svg", sizes: "512x512", type: "image/svg+xml" },
-    ],
-    apple: [
-      { url: "/icon-192x192.svg", sizes: "192x192", type: "image/svg+xml" },
-    ],
+    icon: "/icon-192x192.svg",
+    apple: "/icon-192x192.svg",
   },
 };
 
@@ -48,16 +38,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-        <meta name="theme-color" content="#10b981" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="QuickPick" />
-        <link rel="manifest" href="/manifest.json" />
-        <link rel="icon" href="/icon-192x192.svg" type="image/svg+xml" />
-        <link rel="apple-touch-icon" href="/icon-192x192.svg" />
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
