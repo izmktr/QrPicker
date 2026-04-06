@@ -76,7 +76,7 @@ export default function HomePage() {
     if (user && db) {
       try {
         // まず既存の重複データを削除
-        await removeDuplicateHistory(user.uid, url);
+        const existingMemo = await removeDuplicateHistory(user.uid, url);
 
         let title = '';
         try {
@@ -98,13 +98,16 @@ export default function HomePage() {
           userId: user.uid,
           data: url,
           title,
+          ...(existingMemo ? { memo: existingMemo } : {}),
           timestamp: serverTimestamp(),
         });
 
         // ローカル履歴も更新（重複削除 + 新規追加）
         setHistory(prevHistory => {
+          const localMemo = prevHistory.find(item => item.data === url)?.memo;
+          const carriedMemo = existingMemo || localMemo;
           const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, url);
-          const newHistory = [{ id: docRef.id, data: url, title, timestamp: new Date() }, ...historyWithoutDuplicates];
+          const newHistory = [{ id: docRef.id, data: url, title, ...(carriedMemo ? { memo: carriedMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
           return newHistory.slice(0, 20);
         });
         
@@ -116,8 +119,9 @@ export default function HomePage() {
     } else if (user && !db) {
       // Firebaseが利用できない場合、ローカルのみに保存（重複削除）
       setHistory(prevHistory => {
+        const existingMemo = prevHistory.find(item => item.data === url)?.memo;
         const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, url);
-        const newHistory = [{ id: Date.now().toString(), data: url, timestamp: new Date() }, ...historyWithoutDuplicates];
+        const newHistory = [{ id: Date.now().toString(), data: url, ...(existingMemo ? { memo: existingMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
         return newHistory.slice(0, 20);
       });
       showNotification('URLを追加しました（ローカル保存）', 'info', true, url);
@@ -222,7 +226,7 @@ export default function HomePage() {
         if (user && db) {
           try {
             // 既存の重複データを削除
-            await removeDuplicateHistory(user.uid, sharedUrl);
+            const existingMemo = await removeDuplicateHistory(user.uid, sharedUrl);
 
             // タイトルが提供されていない場合は取得を試行
             let title = sharedTitle || '';
@@ -247,13 +251,16 @@ export default function HomePage() {
               userId: user.uid,
               data: sharedUrl,
               title,
+              ...(existingMemo ? { memo: existingMemo } : {}),
               timestamp: serverTimestamp(),
             });
 
             // ローカル履歴も更新
             setHistory(prevHistory => {
+              const localMemo = prevHistory.find(item => item.data === sharedUrl)?.memo;
+              const carriedMemo = existingMemo || localMemo;
               const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, sharedUrl);
-              const newHistory = [{ id: docRef.id, data: sharedUrl, title, timestamp: new Date() }, ...historyWithoutDuplicates];
+              const newHistory = [{ id: docRef.id, data: sharedUrl, title, ...(carriedMemo ? { memo: carriedMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
               return newHistory.slice(0, 20);
             });
 
@@ -265,8 +272,9 @@ export default function HomePage() {
         } else {
           // ログインしていない場合はローカルのみに保存
           setHistory(prevHistory => {
+            const existingMemo = prevHistory.find(item => item.data === sharedUrl)?.memo;
             const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, sharedUrl);
-            const newHistory = [{ id: Date.now().toString(), data: sharedUrl, title: sharedTitle || undefined, timestamp: new Date() }, ...historyWithoutDuplicates];
+            const newHistory = [{ id: Date.now().toString(), data: sharedUrl, title: sharedTitle || undefined, ...(existingMemo ? { memo: existingMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
             return newHistory.slice(0, 20);
           });
           showNotification('Safariから共有されたページを履歴に追加しました（ローカル保存）', 'info', true, sharedUrl);
@@ -352,7 +360,7 @@ export default function HomePage() {
     if (user && db) {
       try {
         // まず既存の重複データを削除
-        await removeDuplicateHistory(user.uid, data);
+        const existingMemo = await removeDuplicateHistory(user.uid, data);
 
         let title = '';
         if (isUrl(data)) {
@@ -377,13 +385,16 @@ export default function HomePage() {
           userId: user.uid,
           data: data,
           title,
+          ...(existingMemo ? { memo: existingMemo } : {}),
           timestamp: serverTimestamp(),
         });
 
         // ローカル履歴も更新（重複削除 + 新規追加）
         setHistory(prevHistory => {
+          const localMemo = prevHistory.find(item => item.data === data)?.memo;
+          const carriedMemo = existingMemo || localMemo;
           const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, data);
-          const newHistory = [{ id: docRef.id, data, title, timestamp: new Date() }, ...historyWithoutDuplicates];
+          const newHistory = [{ id: docRef.id, data, title, ...(carriedMemo ? { memo: carriedMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
           return newHistory.slice(0, 20);
         });
         
@@ -399,8 +410,9 @@ export default function HomePage() {
     } else if (user && !db) {
       // Firebaseが利用できない場合、ローカルのみに保存（重複削除）
       setHistory(prevHistory => {
+        const existingMemo = prevHistory.find(item => item.data === data)?.memo;
         const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, data);
-        const newHistory = [{ id: Date.now().toString(), data, timestamp: new Date() }, ...historyWithoutDuplicates];
+        const newHistory = [{ id: Date.now().toString(), data, ...(existingMemo ? { memo: existingMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
         return newHistory.slice(0, 20);
       });
       if (isUrl(data)) {

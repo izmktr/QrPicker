@@ -5,9 +5,10 @@ import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/fire
  * 指定されたユーザーの重複する履歴項目を削除する
  * @param userId ユーザーID
  * @param data 新しく追加されるデータ
+ * @returns 削除対象の既存履歴に含まれていたメモ（存在する場合）
  */
-export const removeDuplicateHistory = async (userId: string, data: string): Promise<void> => {
-  if (!db) return;
+export const removeDuplicateHistory = async (userId: string, data: string): Promise<string | undefined> => {
+  if (!db) return undefined;
 
   try {
     // 同じユーザーの同じデータを持つドキュメントを検索
@@ -18,6 +19,12 @@ export const removeDuplicateHistory = async (userId: string, data: string): Prom
     );
     
     const querySnapshot = await getDocs(q);
+    const existingMemo = querySnapshot.docs
+      .map((docSnapshot) => {
+        const memo = docSnapshot.data().memo;
+        return typeof memo === 'string' && memo.trim() ? memo : undefined;
+      })
+      .find((memo) => memo !== undefined);
     
     // 既存のドキュメントがある場合、すべて削除
     const deletePromises = querySnapshot.docs.map(async (docToDelete) => {
@@ -28,8 +35,10 @@ export const removeDuplicateHistory = async (userId: string, data: string): Prom
     });
     
     await Promise.all(deletePromises);
+    return existingMemo;
   } catch (error) {
     console.error("Error removing duplicate history:", error);
+    return undefined;
   }
 };
 
