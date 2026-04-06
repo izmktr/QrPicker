@@ -108,7 +108,7 @@ export default function HomePage() {
           const carriedMemo = existingMemo || localMemo;
           const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, url);
           const newHistory = [{ id: docRef.id, data: url, title, ...(carriedMemo ? { memo: carriedMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
-          return newHistory.slice(0, 20);
+          return newHistory.slice(0, 100);
         });
         
         showNotification('URLを追加しました', 'success', true, url);
@@ -122,7 +122,7 @@ export default function HomePage() {
         const existingMemo = prevHistory.find(item => item.data === url)?.memo;
         const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, url);
         const newHistory = [{ id: Date.now().toString(), data: url, ...(existingMemo ? { memo: existingMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
-        return newHistory.slice(0, 20);
+        return newHistory.slice(0, 100);
       });
       showNotification('URLを追加しました（ローカル保存）', 'info', true, url);
     } else {
@@ -261,7 +261,7 @@ export default function HomePage() {
               const carriedMemo = existingMemo || localMemo;
               const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, sharedUrl);
               const newHistory = [{ id: docRef.id, data: sharedUrl, title, ...(carriedMemo ? { memo: carriedMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
-              return newHistory.slice(0, 20);
+              return newHistory.slice(0, 100);
             });
 
             showNotification('Safariから共有されたページを履歴に追加しました', 'success', true, sharedUrl);
@@ -275,7 +275,7 @@ export default function HomePage() {
             const existingMemo = prevHistory.find(item => item.data === sharedUrl)?.memo;
             const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, sharedUrl);
             const newHistory = [{ id: Date.now().toString(), data: sharedUrl, title: sharedTitle || undefined, ...(existingMemo ? { memo: existingMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
-            return newHistory.slice(0, 20);
+            return newHistory.slice(0, 100);
           });
           showNotification('Safariから共有されたページを履歴に追加しました（ローカル保存）', 'info', true, sharedUrl);
         }
@@ -395,7 +395,7 @@ export default function HomePage() {
           const carriedMemo = existingMemo || localMemo;
           const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, data);
           const newHistory = [{ id: docRef.id, data, title, ...(carriedMemo ? { memo: carriedMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
-          return newHistory.slice(0, 20);
+          return newHistory.slice(0, 100);
         });
         
         if (isUrl(data)) {
@@ -413,7 +413,7 @@ export default function HomePage() {
         const existingMemo = prevHistory.find(item => item.data === data)?.memo;
         const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, data);
         const newHistory = [{ id: Date.now().toString(), data, ...(existingMemo ? { memo: existingMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
-        return newHistory.slice(0, 20);
+        return newHistory.slice(0, 100);
       });
       if (isUrl(data)) {
         showNotification(`URLを読み取りました（ローカル保存）`, 'info', true, data);
