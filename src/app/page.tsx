@@ -9,7 +9,7 @@ import { collection, addDoc, query, where, limit, getDocs, serverTimestamp, dele
 import { isUrl } from '@/lib/urlUtils';
 import { UrlLink } from '@/components/UrlLink';
 import { InstallPrompt } from '@/components/InstallPrompt';
-import { removeDuplicateHistory, removeDuplicateFromLocalHistory, deduplicateHistory } from '@/lib/historyUtils';
+import { removeDuplicateHistory, removeDuplicateFromLocalHistory } from '@/lib/historyUtils';
 
 interface ScanHistoryItem {
   id: string;
@@ -89,7 +89,7 @@ export default function HomePage() {
             const result = await res.json();
             title = result.title || '';
           }
-        } catch (e) {
+        } catch {
           title = '';
         }
 
@@ -241,7 +241,7 @@ export default function HomePage() {
                   const result = await res.json();
                   title = result.title || '';
                 }
-              } catch (e) {
+              } catch {
                 title = '';
               }
             }
@@ -334,7 +334,7 @@ export default function HomePage() {
   }, []);
 
   // 履歴アイテムを削除する関数
-  const handleDeleteHistoryItem = useCallback(async (itemId: string, itemData: string) => {
+  const handleDeleteHistoryItem = useCallback(async (itemId: string) => {
     if (user && db) {
       try {
         // Firebaseから削除
@@ -374,7 +374,7 @@ export default function HomePage() {
               const result = await res.json();
               title = result.title || '';
             }
-          } catch (e) {
+          } catch {
             // タイトル取得失敗時は空欄
             title = '';
           }
@@ -652,7 +652,7 @@ export default function HomePage() {
                       )}
                       {deleteMode && (
                         <button
-                          onClick={() => handleDeleteHistoryItem(item.id, item.data)}
+                          onClick={() => handleDeleteHistoryItem(item.id)}
                           className="bg-red-100 hover:bg-red-200 text-red-700 px-2 py-2 rounded-lg transition-colors"
                           title="削除"
                         >
@@ -872,7 +872,7 @@ export default function HomePage() {
                     )}
                     {deleteMode && (
                       <button
-                        onClick={() => handleDeleteHistoryItem(item.id, item.data)}
+                        onClick={() => handleDeleteHistoryItem(item.id)}
                         className="bg-red-100 hover:bg-red-200 text-red-700 px-2 py-2 rounded-lg transition-colors"
                         title="削除"
                       >

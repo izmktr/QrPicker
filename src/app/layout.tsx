@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ClientAuthProvider } from "@/components/ClientAuthProvider";
@@ -14,16 +14,17 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export const metadata: Metadata = {
   title: "QuickPick", // titleとdescriptionは残します
   description: "QRコードを読み取り、履歴を管理できるモダンなウェブアプリケーション",
   manifest: "/manifest.json",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
   // appleWebAppとiconsはmanifest.jsonと重複するため、Next.jsのメタデータ機能に任せます
   icons: {
     icon: "/icon-192x192.svg",

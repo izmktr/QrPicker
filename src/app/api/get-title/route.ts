@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
     const title = extractTitle(html);
 
     return NextResponse.json({ title });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ error: 'Error fetching title' }, { status: 500 });
   }
 }
