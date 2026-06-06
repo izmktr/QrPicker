@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import QrScanner from '@/components/QrScanner';
@@ -27,6 +27,8 @@ interface NotificationMessage {
   url?: string;
 }
 
+const SAME_QR_DEBOUNCE_MS = 2000;
+
 export default function HomePage() {
   const router = useRouter();
   const { user, loading } = useAuth();
@@ -38,6 +40,8 @@ export default function HomePage() {
   const [deleteMode, setDeleteMode] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInput, setUrlInput] = useState('');
+  const isProcessingScanRef = useRef(false);
+  const lastScanRef = useRef<{ data: string; timestamp: number } | null>(null);
 
   // 通知を表示する関数
   const showNotification = useCallback((message: string, type: 'success' | 'info' | 'warning', isUrl = false, url?: string) => {
@@ -356,9 +360,22 @@ export default function HomePage() {
   }, [user, showNotification]);
 
   const handleScan = useCallback(async (data: string) => {
+    const now = Date.now();
+    const lastScan = lastScanRef.current;
+    if (lastScan && lastScan.data === data && now - lastScan.timestamp < SAME_QR_DEBOUNCE_MS) {
+      setShowScanner(false);
+      return;
+    }
+
+    if (isProcessingScanRef.current) {
+      return;
+    }
+
+    lastScanRef.current = { data, timestamp: now };
+    isProcessingScanRef.current = true;
     setShowScanner(false);
-    if (user && db) {
-      try {
+    try {
+      if (user && db) {
         // まず既存の重複データを削除
         const existingMemo = await removeDuplicateHistory(user.uid, data);
 
@@ -403,29 +420,31 @@ export default function HomePage() {
         } else {
           showNotification(`QRコードを読み取りました: ${data}`, 'success');
         }
-      } catch (e) {
-        console.error("Error adding document: ", e);
-        showNotification("履歴の保存に失敗しました。", 'warning');
-      }
-    } else if (user && !db) {
-      // Firebaseが利用できない場合、ローカルのみに保存（重複削除）
-      setHistory(prevHistory => {
-        const existingMemo = prevHistory.find(item => item.data === data)?.memo;
-        const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, data);
-        const newHistory = [{ id: Date.now().toString(), data, ...(existingMemo ? { memo: existingMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
-        return newHistory.slice(0, 100);
-      });
-      if (isUrl(data)) {
-        showNotification(`URLを読み取りました（ローカル保存）`, 'info', true, data);
+      } else if (user && !db) {
+        // Firebaseが利用できない場合、ローカルのみに保存（重複削除）
+        setHistory(prevHistory => {
+          const existingMemo = prevHistory.find(item => item.data === data)?.memo;
+          const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, data);
+          const newHistory = [{ id: Date.now().toString(), data, ...(existingMemo ? { memo: existingMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
+          return newHistory.slice(0, 100);
+        });
+        if (isUrl(data)) {
+          showNotification(`URLを読み取りました（ローカル保存）`, 'info', true, data);
+        } else {
+          showNotification(`QRコードを読み取りました: ${data}（ローカル保存）`, 'info');
+        }
       } else {
-        showNotification(`QRコードを読み取りました: ${data}（ローカル保存）`, 'info');
+        if (isUrl(data)) {
+          showNotification(`URLを読み取りました（履歴保存なし）`, 'warning', true, data);
+        } else {
+          showNotification(`QRコードを読み取りました: ${data}（履歴保存なし）`, 'warning');
+        }
       }
-    } else {
-      if (isUrl(data)) {
-        showNotification(`URLを読み取りました（履歴保存なし）`, 'warning', true, data);
-      } else {
-        showNotification(`QRコードを読み取りました: ${data}（履歴保存なし）`, 'warning');
-      }
+    } catch (e) {
+      console.error("Error adding document: ", e);
+      showNotification("履歴の保存に失敗しました。", 'warning');
+    } finally {
+      isProcessingScanRef.current = false;
     }
   }, [user, showNotification]);
 
