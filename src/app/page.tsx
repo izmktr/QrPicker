@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import QrScanner from '@/components/QrScanner';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, query, where, limit, getDocs, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, limit, onSnapshot, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { isUrl } from '@/lib/urlUtils';
 import { UrlLink } from '@/components/UrlLink';
 import { InstallPrompt } from '@/components/InstallPrompt';
@@ -162,54 +162,54 @@ export default function HomePage() {
 
   // Fetch history on user change or component mount
   useEffect(() => {
-    const fetchHistory = async () => {
-      if (user && db) {
-        try {
-          console.log('Fetching history for user:', user.uid);
-          
-          // より多くのデータを取得して確認
-          const q = query(
-            collection(db, "scanHistory"),
-            where("userId", "==", user.uid),
-            limit(100) // 取得件数を増加
-          );
-          const querySnapshot = await getDocs(q);
-          const fetchedHistory: ScanHistoryItem[] = [];
-          querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            console.log('Document data:', { id: doc.id, ...data });
-            fetchedHistory.push({ id: doc.id, ...data } as ScanHistoryItem);
-          });
-          
-          console.log('Total fetched documents:', fetchedHistory.length);
-          
-          // クライアントサイドでタイムスタンプでソート（降順）
-          const sortedHistory = fetchedHistory.sort((a, b) => {
-            const getTimestamp = (timestamp: Date | { seconds: number } | null): number => {
-              if (!timestamp) return 0;
-              if (timestamp instanceof Date) return timestamp.getTime();
-              if (typeof timestamp === 'object' && 'seconds' in timestamp) return timestamp.seconds * 1000;
-              return 0;
-            };
-            
-            return getTimestamp(b.timestamp) - getTimestamp(a.timestamp);
-          });
-          
-          console.log('Sorted history length:', sortedHistory.length);
-          
-          // 表示件数を増やし、重複削除をより緩やかに（最新100件表示）
-          // 同じURLでも時間が違えば別エントリとして保持
-          const finalHistory = sortedHistory.slice(0, 100);
-          console.log('Final history length:', finalHistory.length);
-          setHistory(finalHistory);
-        } catch (error) {
-          console.error("Error fetching history:", error);
-        }
-      } else {
-        console.log('User or db not available:', { user: !!user, db: !!db });
+    if (!user || !db) {
+      console.log('User or db not available:', { user: !!user, db: !!db });
+      setHistory([]);
+      return;
+    }
+
+    console.log('Subscribing to history for user:', user.uid);
+
+    const q = query(
+      collection(db, "scanHistory"),
+      where("userId", "==", user.uid),
+      limit(100)
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (querySnapshot) => {
+        const fetchedHistory: ScanHistoryItem[] = [];
+
+        querySnapshot.forEach((docSnapshot) => {
+          const data = docSnapshot.data();
+          console.log('Document data:', { id: docSnapshot.id, ...data });
+          fetchedHistory.push({ id: docSnapshot.id, ...data } as ScanHistoryItem);
+        });
+
+        console.log('Total fetched documents:', fetchedHistory.length);
+
+        const sortedHistory = fetchedHistory.sort((a, b) => {
+          const getTimestamp = (timestamp: Date | { seconds: number } | null): number => {
+            if (!timestamp) return 0;
+            if (timestamp instanceof Date) return timestamp.getTime();
+            if (typeof timestamp === 'object' && 'seconds' in timestamp) return timestamp.seconds * 1000;
+            return 0;
+          };
+
+          return getTimestamp(b.timestamp) - getTimestamp(a.timestamp);
+        });
+
+        const finalHistory = sortedHistory.slice(0, 100);
+        console.log('Final history length:', finalHistory.length);
+        setHistory(finalHistory);
+      },
+      (error) => {
+        console.error('Error subscribing to history:', error);
       }
-    };
-    fetchHistory();
+    );
+
+    return () => unsubscribe();
   }, [user]);
 
   // 共有されたURLを処理する
