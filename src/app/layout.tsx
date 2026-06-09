@@ -32,6 +32,8 @@ export const metadata: Metadata = {
   },
 };
 
+const buildTime = process.env.NEXT_PUBLIC_BUILD_TIME;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -44,6 +46,11 @@ export default function RootLayout({
       >
         <PWAInstaller />
         <ClientAuthProvider>{children}</ClientAuthProvider>
+        {buildTime && (
+          <div className="fixed bottom-2 left-1/2 z-50 -translate-x-1/2 text-[10px] text-gray-500/90 pointer-events-none">
+            Build {buildTime}
+          </div>
+        )}
       </body>
     </html>
   );
