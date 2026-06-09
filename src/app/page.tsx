@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import QrScanner from '@/components/QrScanner';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, query, where, limit, onSnapshot, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { isUrl } from '@/lib/urlUtils';
 import { UrlLink } from '@/components/UrlLink';
 import { InstallPrompt } from '@/components/InstallPrompt';
@@ -173,6 +173,7 @@ export default function HomePage() {
     const q = query(
       collection(db, "scanHistory"),
       where("userId", "==", user.uid),
+      orderBy("timestamp", "desc"),
       limit(100)
     );
 
@@ -206,11 +207,12 @@ export default function HomePage() {
       },
       (error) => {
         console.error('Error subscribing to history:', error);
+        showNotification('履歴の同期に失敗しました。Firebase設定またはインデックスを確認してください。', 'warning');
       }
     );
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, showNotification]);
 
   // 共有されたURLを処理する
   useEffect(() => {

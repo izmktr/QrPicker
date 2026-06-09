@@ -12,24 +12,28 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
+const requiredKeys = [
+  'apiKey',
+  'authDomain',
+  'projectId',
+  'appId'
+] as const;
+
 // Firebaseの設定が完全でない場合はnullを返す
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
 
 try {
-  // すべての必要な環境変数が設定されているかチェック
-  if (firebaseConfig.apiKey && 
-      firebaseConfig.authDomain && 
-      firebaseConfig.projectId && 
-      firebaseConfig.storageBucket && 
-      firebaseConfig.messagingSenderId && 
-      firebaseConfig.appId) {
+  // Auth/Firestoreで必須の環境変数のみをチェック
+  const missingKeys = requiredKeys.filter((key) => !firebaseConfig[key]);
+
+  if (missingKeys.length === 0) {
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     auth = getAuth(app);
     db = getFirestore(app);
   } else {
-    console.warn('Firebase configuration is incomplete. Some features may not work.');
+    console.warn(`Firebase configuration is incomplete. Missing keys: ${missingKeys.join(', ')}`);
   }
 } catch (error) {
   console.error('Firebase initialization failed:', error);
