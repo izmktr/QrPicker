@@ -19,10 +19,10 @@ const requiredKeys = [
   'appId'
 ] as const;
 
-// Firebaseの設定が完全でない場合はnullを返す
+// Firebaseの設定が完全でない場合はエラーをスロー
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
-let db: Firestore | null = null;
+let db: Firestore;
 
 try {
   // Auth/Firestoreで必須の環境変数のみをチェック
@@ -33,10 +33,11 @@ try {
     auth = getAuth(app);
     db = getFirestore(app);
   } else {
-    console.warn(`Firebase configuration is incomplete. Missing keys: ${missingKeys.join(', ')}`);
+    throw new Error(`Firebase configuration is incomplete. Missing keys: ${missingKeys.join(', ')}`);
   }
 } catch (error) {
   console.error('Firebase initialization failed:', error);
+  throw error;
 }
 
 export { auth, db };
