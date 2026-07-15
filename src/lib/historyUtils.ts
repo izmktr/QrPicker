@@ -19,7 +19,9 @@ export const removeDuplicateHistory = async (userId: string, data: string): Prom
     );
     
     const querySnapshot = await getDocs(q);
-    const existingMemo = querySnapshot.docs
+    const activeDocs = querySnapshot.docs.filter((docSnapshot) => docSnapshot.data().deleted !== true);
+
+    const existingMemo = activeDocs
       .map((docSnapshot) => {
         const memo = docSnapshot.data().memo;
         return typeof memo === 'string' && memo.trim() ? memo : undefined;
@@ -27,7 +29,7 @@ export const removeDuplicateHistory = async (userId: string, data: string): Prom
       .find((memo) => memo !== undefined);
     
     // 既存のドキュメントがある場合、すべて削除
-    const deletePromises = querySnapshot.docs.map(async (docToDelete) => {
+    const deletePromises = activeDocs.map(async (docToDelete) => {
       if (db) {
         await deleteDoc(doc(db, "scanHistory", docToDelete.id));
         console.log(`Deleted duplicate history item: ${docToDelete.id}`);
@@ -48,11 +50,11 @@ export const removeDuplicateHistory = async (userId: string, data: string): Prom
  * @param newData 新しく追加するデータ
  * @returns 重複を削除した履歴配列
  */
-export const removeDuplicateFromLocalHistory = <T extends { data: string }>(
+export const removeDuplicateFromLocalHistory = <T extends { data: string; deleted?: boolean }>(
   history: T[], 
   newData: string
 ): T[] => {
-  return history.filter(item => item.data !== newData);
+  return history.filter(item => item.data !== newData || item.deleted === true);
 };
 
 /**

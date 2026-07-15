@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import QrScanner from '@/components/QrScanner';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
 import { isUrl } from '@/lib/urlUtils';
 import { UrlLink } from '@/components/UrlLink';
 import { InstallPrompt } from '@/components/InstallPrompt';
@@ -17,6 +17,8 @@ interface ScanHistoryItem {
   title?: string;
   memo?: string;
   timestamp: Date | { seconds: number } | null; // Firebase Timestamp or Date
+  deleted?: boolean;
+  deletedAt?: Date | { seconds: number } | null;
 }
 
 interface NotificationMessage {
@@ -28,6 +30,14 @@ interface NotificationMessage {
 }
 
 const SAME_QR_DEBOUNCE_MS = 2000;
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+const getTimestampMs = (timestamp: Date | { seconds: number } | null | undefined): number => {
+  if (!timestamp) return 0;
+  if (timestamp instanceof Date) return timestamp.getTime();
+  if (typeof timestamp === 'object' && 'seconds' in timestamp) return timestamp.seconds * 1000;
+  return 0;
+};
 
 export default function HomePage() {
   const router = useRouter();
@@ -38,6 +48,7 @@ export default function HomePage() {
   const [editingMemo, setEditingMemo] = useState<string | null>(null);
   const [memoText, setMemoText] = useState('');
   const [deleteMode, setDeleteMode] = useState(false);
+  const [showTrashOnly, setShowTrashOnly] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const isProcessingScanRef = useRef(false);
@@ -341,25 +352,75 @@ export default function HomePage() {
 
   // 履歴アイテムを削除する関数
   const handleDeleteHistoryItem = useCallback(async (itemId: string) => {
+    const deletedAt = new Date();
+    const nowMs = deletedAt.getTime();
+    const purgeCutoff = new Date(nowMs - THIRTY_DAYS_MS);
+
+    const historyAfterSoftDelete = history.map((item) =>
+      item.id === itemId ? { ...item, deleted: true, deletedAt } : item
+    );
+
+    const localPurgeTargetIds = new Set(
+      historyAfterSoftDelete
+        .filter((item) => item.deleted === true)
+        .filter((item) => {
+          const deletedAtMs = getTimestampMs(item.deletedAt);
+          return deletedAtMs > 0 && nowMs - deletedAtMs >= THIRTY_DAYS_MS;
+        })
+        .map((item) => item.id)
+    );
+
     if (user && db) {
       try {
-        // Firebaseから削除
-        await deleteDoc(doc(db, "scanHistory", itemId));
-        
-        // ローカル履歴からも削除
-        setHistory(prevHistory => prevHistory.filter(item => item.id !== itemId));
-        
-        showNotification('履歴を削除しました', 'success');
+        await updateDoc(doc(db, "scanHistory", itemId), {
+          deleted: true,
+          deletedAt: serverTimestamp(),
+        });
+
+        const staleDeletedQuery = query(
+          collection(db, "scanHistory"),
+          where("userId", "==", user.uid),
+          where("deleted", "==", true),
+          where("deletedAt", "<=", purgeCutoff)
+        );
+        const staleDeletedSnapshot = await getDocs(staleDeletedQuery);
+        const staleDeletedIds = new Set(staleDeletedSnapshot.docs.map((docSnapshot) => docSnapshot.id));
+
+        if (staleDeletedIds.size > 0) {
+          await Promise.all(
+            Array.from(staleDeletedIds).map((id) => deleteDoc(doc(db, "scanHistory", id)))
+          );
+        }
+
+        setHistory((prevHistory) =>
+          prevHistory
+            .map((item) => (item.id === itemId ? { ...item, deleted: true, deletedAt } : item))
+            .filter((item) => !staleDeletedIds.has(item.id))
+        );
+
+        if (staleDeletedIds.size > 0) {
+          showNotification(`履歴をゴミ箱に移動しました（${staleDeletedIds.size}件を完全削除）`, 'success');
+        } else {
+          showNotification('履歴をゴミ箱に移動しました', 'success');
+        }
       } catch (error) {
         console.error('Error deleting history item:', error);
         showNotification('履歴の削除に失敗しました', 'warning');
       }
     } else {
-      // ログインしていない場合はローカルのみから削除
-      setHistory(prevHistory => prevHistory.filter(item => item.id !== itemId));
-      showNotification('履歴を削除しました（ローカル）', 'info');
+      setHistory((prevHistory) =>
+        prevHistory
+          .map((item) => (item.id === itemId ? { ...item, deleted: true, deletedAt } : item))
+          .filter((item) => !localPurgeTargetIds.has(item.id))
+      );
+
+      if (localPurgeTargetIds.size > 0) {
+        showNotification(`履歴をゴミ箱に移動しました（ローカルで${localPurgeTargetIds.size}件を完全削除）`, 'info');
+      } else {
+        showNotification('履歴をゴミ箱に移動しました（ローカル）', 'info');
+      }
     }
-  }, [user, showNotification]);
+  }, [history, user, showNotification]);
 
   const handleScan = useCallback(async (data: string) => {
     const now = Date.now();
@@ -482,6 +543,8 @@ export default function HomePage() {
     }
   };
 
+  const displayedHistory = history.filter((item) => (showTrashOnly ? item.deleted === true : item.deleted !== true));
+
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
@@ -554,6 +617,16 @@ export default function HomePage() {
           >
             {deleteMode ? '削除モード終了' : '削除モード'}
           </button>
+          <button
+            onClick={() => setShowTrashOnly(!showTrashOnly)}
+            className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out ${
+              showTrashOnly
+                ? 'bg-amber-500 hover:bg-amber-700 text-white'
+                : 'bg-slate-500 hover:bg-slate-700 text-white'
+            }`}
+          >
+            {showTrashOnly ? '通常表示' : 'ゴミ箱'}
+          </button>
         </div>
 
         {/* URL入力フォーム */}
@@ -596,11 +669,11 @@ export default function HomePage() {
 
         <div className="w-full max-w-6xl bg-white rounded-lg shadow-md p-4">
           <h2 className="text-xl font-bold mb-4">読み取り履歴</h2>
-          {history.length === 0 ? (
-            <p className="text-gray-600">履歴はありません。</p>
+          {displayedHistory.length === 0 ? (
+            <p className="text-gray-600">{showTrashOnly ? 'ゴミ箱は空です。' : '履歴はありません。'}</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {history.map((item) => (
+              {displayedHistory.map((item) => (
                 <div key={item.id} className="bg-gray-50 p-3 rounded-md border border-gray-200 flex flex-col">
                   <div className="flex-1 mb-2">
                     {isUrl(item.data) ? (
@@ -671,7 +744,7 @@ export default function HomePage() {
                           📝 メモ
                         </button>
                       )}
-                      {deleteMode && (
+                      {deleteMode && item.deleted !== true && (
                         <button
                           onClick={() => handleDeleteHistoryItem(item.id)}
                           className="bg-red-100 hover:bg-red-200 text-red-700 px-2 py-2 rounded-lg transition-colors"
@@ -704,6 +777,16 @@ export default function HomePage() {
             }`}
           >
             {deleteMode ? '削除モード終了' : '削除モード'}
+          </button>
+          <button
+            onClick={() => setShowTrashOnly(!showTrashOnly)}
+            className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out ${
+              showTrashOnly
+                ? 'bg-amber-500 hover:bg-amber-700 text-white'
+                : 'bg-slate-500 hover:bg-slate-700 text-white'
+            }`}
+          >
+            {showTrashOnly ? '通常表示' : 'ゴミ箱'}
           </button>
         </div>
 
@@ -774,6 +857,16 @@ export default function HomePage() {
         >
           {deleteMode ? '削除モード終了' : '削除モード'}
         </button>
+        <button
+          onClick={() => setShowTrashOnly(!showTrashOnly)}
+          className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out ${
+            showTrashOnly
+              ? 'bg-amber-500 hover:bg-amber-700 text-white'
+              : 'bg-slate-500 hover:bg-slate-700 text-white'
+          }`}
+        >
+          {showTrashOnly ? '通常表示' : 'ゴミ箱'}
+        </button>
       </div>
 
       {/* URL入力フォーム */}
@@ -816,11 +909,11 @@ export default function HomePage() {
 
       <div className="w-full max-w-6xl bg-white rounded-lg shadow-md p-4">
         <h2 className="text-xl font-bold mb-4">読み取り履歴</h2>
-        {history.length === 0 ? (
-          <p className="text-gray-600">履歴はありません。</p>
+        {displayedHistory.length === 0 ? (
+          <p className="text-gray-600">{showTrashOnly ? 'ゴミ箱は空です。' : '履歴はありません。'}</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {history.map((item) => (
+            {displayedHistory.map((item) => (
               <div key={item.id} className="bg-gray-50 p-3 rounded-md border border-gray-200 flex flex-col">
                 <div className="flex-1 mb-2">
                   {isUrl(item.data) ? (
@@ -891,7 +984,7 @@ export default function HomePage() {
                         📝 メモ
                       </button>
                     )}
-                    {deleteMode && (
+                    {deleteMode && item.deleted !== true && (
                       <button
                         onClick={() => handleDeleteHistoryItem(item.id)}
                         className="bg-red-100 hover:bg-red-200 text-red-700 px-2 py-2 rounded-lg transition-colors"
@@ -924,6 +1017,16 @@ export default function HomePage() {
           }`}
         >
           {deleteMode ? '削除モード終了' : '削除モード'}
+        </button>
+        <button
+          onClick={() => setShowTrashOnly(!showTrashOnly)}
+          className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out ${
+            showTrashOnly
+              ? 'bg-amber-500 hover:bg-amber-700 text-white'
+              : 'bg-slate-500 hover:bg-slate-700 text-white'
+          }`}
+        >
+          {showTrashOnly ? '通常表示' : 'ゴミ箱'}
         </button>
       </div>
 
