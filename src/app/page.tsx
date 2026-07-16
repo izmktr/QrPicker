@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import QrScanner from '@/components/QrScanner';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
+import { collection, addDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, deleteDoc, doc, updateDoc, getDocs, deleteField } from 'firebase/firestore';
 import { isUrl } from '@/lib/urlUtils';
 import { UrlLink } from '@/components/UrlLink';
 import { InstallPrompt } from '@/components/InstallPrompt';
@@ -422,6 +422,43 @@ export default function HomePage() {
     }
   }, [history, user, showNotification]);
 
+  const handleRestoreHistoryItem = useCallback(async (itemId: string) => {
+    if (user && db) {
+      try {
+        await updateDoc(doc(db, "scanHistory", itemId), {
+          deleted: deleteField(),
+          deletedAt: deleteField(),
+        });
+
+        setHistory((prevHistory) =>
+          prevHistory.map((item) => {
+            if (item.id !== itemId) return item;
+            const { deleted, deletedAt, ...rest } = item;
+            void deleted;
+            void deletedAt;
+            return rest;
+          })
+        );
+
+        showNotification('削除を取り消しました', 'success');
+      } catch (error) {
+        console.error('Error restoring history item:', error);
+        showNotification('削除取り消しに失敗しました', 'warning');
+      }
+    } else {
+      setHistory((prevHistory) =>
+        prevHistory.map((item) => {
+          if (item.id !== itemId) return item;
+          const { deleted, deletedAt, ...rest } = item;
+          void deleted;
+          void deletedAt;
+          return rest;
+        })
+      );
+      showNotification('削除を取り消しました（ローカル）', 'info');
+    }
+  }, [user, showNotification]);
+
   const handleScan = useCallback(async (data: string) => {
     const now = Date.now();
     const lastScan = lastScanRef.current;
@@ -735,6 +772,15 @@ export default function HomePage() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
+                      {showTrashOnly && (
+                        <button
+                          onClick={() => handleRestoreHistoryItem(item.id)}
+                          className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                          title="削除取り消し"
+                        >
+                          ↩ 削除取り消し
+                        </button>
+                      )}
                       {editingMemo !== item.id && (
                         <button
                           onClick={() => handleStartEditMemo(item.id, item.memo || '')}
@@ -975,6 +1021,15 @@ export default function HomePage() {
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
+                    {showTrashOnly && (
+                      <button
+                        onClick={() => handleRestoreHistoryItem(item.id)}
+                        className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                        title="削除取り消し"
+                      >
+                        ↩ 削除取り消し
+                      </button>
+                    )}
                     {editingMemo !== item.id && (
                       <button
                         onClick={() => handleStartEditMemo(item.id, item.memo || '')}
