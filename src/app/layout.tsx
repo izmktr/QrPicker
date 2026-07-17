@@ -27,8 +27,8 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   // appleWebAppとiconsはmanifest.jsonと重複するため、Next.jsのメタデータ機能に任せます
   icons: {
-    icon: "/icon-192x192.svg",
-    apple: "/icon-192x192.svg",
+    icon: "/icon-192x192.png",
+    apple: "/icon-192x192.png",
   },
 };
 
