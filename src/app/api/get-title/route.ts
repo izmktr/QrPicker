@@ -96,7 +96,10 @@ export async function POST(req: NextRequest) {
     const html = decodeHtml(bytes, charset);
     const title = extractTitle(html);
 
-    return NextResponse.json({ title });
+    return NextResponse.json({
+      title,
+      finalUrl: res.url || url,
+    });
   } catch {
     return NextResponse.json({ error: 'Error fetching title' }, { status: 500 });
   }

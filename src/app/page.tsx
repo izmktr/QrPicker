@@ -54,6 +54,32 @@ export default function HomePage() {
   const isProcessingScanRef = useRef(false);
   const lastScanRef = useRef<{ data: string; timestamp: number } | null>(null);
 
+  const resolveUrlMetadata = useCallback(async (originalUrl: string): Promise<{ resolvedUrl: string; title: string }> => {
+    try {
+      const res = await fetch('/api/get-title', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: originalUrl }),
+      });
+
+      if (!res.ok) {
+        return { resolvedUrl: originalUrl, title: '' };
+      }
+
+      const result: { title?: string; finalUrl?: string } = await res.json();
+      const resolvedUrl = typeof result.finalUrl === 'string' && isUrl(result.finalUrl)
+        ? result.finalUrl
+        : originalUrl;
+
+      return {
+        resolvedUrl,
+        title: result.title || '',
+      };
+    } catch {
+      return { resolvedUrl: originalUrl, title: '' };
+    }
+  }, []);
+
   // 通知を表示する関数
   const showNotification = useCallback((message: string, type: 'success' | 'info' | 'warning', isUrl = false, url?: string) => {
     const id = Date.now().toString();
@@ -87,31 +113,18 @@ export default function HomePage() {
     setShowUrlInput(false);
     setUrlInput('');
 
+    const { resolvedUrl, title } = await resolveUrlMetadata(url);
+
     // handleScanと同じ処理を実行
     if (user && db) {
       try {
         // まず既存の重複データを削除
-        const existingMemo = await removeDuplicateHistory(user.uid, url);
-
-        let title = '';
-        try {
-          const res = await fetch('/api/get-title', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url }),
-          });
-          if (res.ok) {
-            const result = await res.json();
-            title = result.title || '';
-          }
-        } catch {
-          title = '';
-        }
+        const existingMemo = await removeDuplicateHistory(user.uid, resolvedUrl);
 
         // 新しいデータを追加
         const docRef = await addDoc(collection(db, "scanHistory"), {
           userId: user.uid,
-          data: url,
+          data: resolvedUrl,
           title,
           ...(existingMemo ? { memo: existingMemo } : {}),
           timestamp: serverTimestamp(),
@@ -119,14 +132,14 @@ export default function HomePage() {
 
         // ローカル履歴も更新（重複削除 + 新規追加）
         setHistory(prevHistory => {
-          const localMemo = prevHistory.find(item => item.data === url)?.memo;
+          const localMemo = prevHistory.find(item => item.data === resolvedUrl)?.memo;
           const carriedMemo = existingMemo || localMemo;
-          const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, url);
-          const newHistory = [{ id: docRef.id, data: url, title, ...(carriedMemo ? { memo: carriedMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
+          const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, resolvedUrl);
+          const newHistory = [{ id: docRef.id, data: resolvedUrl, title, ...(carriedMemo ? { memo: carriedMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
           return newHistory.slice(0, 100);
         });
         
-        showNotification('URLを追加しました', 'success', true, url);
+        showNotification('URLを追加しました', 'success', true, resolvedUrl);
       } catch (e) {
         console.error("Error adding document: ", e);
         showNotification("履歴の保存に失敗しました。", 'warning');
@@ -134,16 +147,16 @@ export default function HomePage() {
     } else if (user && !db) {
       // Firebaseが利用できない場合、ローカルのみに保存（重複削除）
       setHistory(prevHistory => {
-        const existingMemo = prevHistory.find(item => item.data === url)?.memo;
-        const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, url);
-        const newHistory = [{ id: Date.now().toString(), data: url, ...(existingMemo ? { memo: existingMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
+        const existingMemo = prevHistory.find(item => item.data === resolvedUrl)?.memo;
+        const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, resolvedUrl);
+        const newHistory = [{ id: Date.now().toString(), data: resolvedUrl, ...(title ? { title } : {}), ...(existingMemo ? { memo: existingMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
         return newHistory.slice(0, 100);
       });
-      showNotification('URLを追加しました（ローカル保存）', 'info', true, url);
+      showNotification('URLを追加しました（ローカル保存）', 'info', true, resolvedUrl);
     } else {
-      showNotification('URLを追加しました（履歴保存なし）', 'warning', true, url);
+      showNotification('URLを追加しました（履歴保存なし）', 'warning', true, resolvedUrl);
     }
-  }, [urlInput, user, showNotification]);
+  }, [urlInput, user, showNotification, resolveUrlMetadata]);
 
   // URL入力をキャンセルする関数
   const handleCancelUrlInput = useCallback(() => {
@@ -239,34 +252,23 @@ export default function HomePage() {
         newUrl.searchParams.delete('shared_title');
         window.history.replaceState({}, '', newUrl.toString());
 
+        const isSharedUrl = isUrl(sharedUrl);
+        const resolved = isSharedUrl ? await resolveUrlMetadata(sharedUrl) : { resolvedUrl: sharedUrl, title: '' };
+        const savedUrl = resolved.resolvedUrl;
+
         // 共有されたURLを履歴に追加
         if (user && db) {
           try {
             // 既存の重複データを削除
-            const existingMemo = await removeDuplicateHistory(user.uid, sharedUrl);
+            const existingMemo = await removeDuplicateHistory(user.uid, savedUrl);
 
-            // タイトルが提供されていない場合は取得を試行
-            let title = sharedTitle || '';
-            if (!title && isUrl(sharedUrl)) {
-              try {
-                const res = await fetch('/api/get-title', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ url: sharedUrl }),
-                });
-                if (res.ok) {
-                  const result = await res.json();
-                  title = result.title || '';
-                }
-              } catch {
-                title = '';
-              }
-            }
+            // 共有元タイトルを優先。なければ取得したタイトルを使用
+            const title = sharedTitle || resolved.title;
 
             // Firebaseに保存
             const docRef = await addDoc(collection(db, "scanHistory"), {
               userId: user.uid,
-              data: sharedUrl,
+              data: savedUrl,
               title,
               ...(existingMemo ? { memo: existingMemo } : {}),
               timestamp: serverTimestamp(),
@@ -274,14 +276,14 @@ export default function HomePage() {
 
             // ローカル履歴も更新
             setHistory(prevHistory => {
-              const localMemo = prevHistory.find(item => item.data === sharedUrl)?.memo;
+              const localMemo = prevHistory.find(item => item.data === savedUrl)?.memo;
               const carriedMemo = existingMemo || localMemo;
-              const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, sharedUrl);
-              const newHistory = [{ id: docRef.id, data: sharedUrl, title, ...(carriedMemo ? { memo: carriedMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
+              const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, savedUrl);
+              const newHistory = [{ id: docRef.id, data: savedUrl, title, ...(carriedMemo ? { memo: carriedMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
               return newHistory.slice(0, 100);
             });
 
-            showNotification('Safariから共有されたページを履歴に追加しました', 'success', true, sharedUrl);
+            showNotification('Safariから共有されたページを履歴に追加しました', 'success', true, savedUrl);
           } catch (error) {
             console.error('Error saving shared URL:', error);
             showNotification('共有されたページの保存に失敗しました', 'warning');
@@ -289,18 +291,18 @@ export default function HomePage() {
         } else {
           // ログインしていない場合はローカルのみに保存
           setHistory(prevHistory => {
-            const existingMemo = prevHistory.find(item => item.data === sharedUrl)?.memo;
-            const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, sharedUrl);
-            const newHistory = [{ id: Date.now().toString(), data: sharedUrl, title: sharedTitle || undefined, ...(existingMemo ? { memo: existingMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
+            const existingMemo = prevHistory.find(item => item.data === savedUrl)?.memo;
+            const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, savedUrl);
+            const newHistory = [{ id: Date.now().toString(), data: savedUrl, title: sharedTitle || resolved.title || undefined, ...(existingMemo ? { memo: existingMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
             return newHistory.slice(0, 100);
           });
-          showNotification('Safariから共有されたページを履歴に追加しました（ローカル保存）', 'info', true, sharedUrl);
+          showNotification('Safariから共有されたページを履歴に追加しました（ローカル保存）', 'info', true, savedUrl);
         }
       }
     };
 
     handleSharedUrl();
-  }, [user, showNotification]);
+  }, [user, showNotification, resolveUrlMetadata]);
 
   // メモを更新する関数
   const handleUpdateMemo = useCallback(async (itemId: string, newMemo: string) => {
@@ -475,32 +477,19 @@ export default function HomePage() {
     isProcessingScanRef.current = true;
     setShowScanner(false);
     try {
+      const scannedIsUrl = isUrl(data);
+      const { resolvedUrl, title } = scannedIsUrl
+        ? await resolveUrlMetadata(data)
+        : { resolvedUrl: data, title: '' };
+
       if (user && db) {
         // まず既存の重複データを削除
-        const existingMemo = await removeDuplicateHistory(user.uid, data);
-
-        let title = '';
-        if (isUrl(data)) {
-          try {
-            const res = await fetch('/api/get-title', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ url: data }),
-            });
-            if (res.ok) {
-              const result = await res.json();
-              title = result.title || '';
-            }
-          } catch {
-            // タイトル取得失敗時は空欄
-            title = '';
-          }
-        }
+        const existingMemo = await removeDuplicateHistory(user.uid, resolvedUrl);
 
         // 新しいデータを追加
         const docRef = await addDoc(collection(db, "scanHistory"), {
           userId: user.uid,
-          data: data,
+          data: resolvedUrl,
           title,
           ...(existingMemo ? { memo: existingMemo } : {}),
           timestamp: serverTimestamp(),
@@ -508,36 +497,36 @@ export default function HomePage() {
 
         // ローカル履歴も更新（重複削除 + 新規追加）
         setHistory(prevHistory => {
-          const localMemo = prevHistory.find(item => item.data === data)?.memo;
+          const localMemo = prevHistory.find(item => item.data === resolvedUrl)?.memo;
           const carriedMemo = existingMemo || localMemo;
-          const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, data);
-          const newHistory = [{ id: docRef.id, data, title, ...(carriedMemo ? { memo: carriedMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
+          const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, resolvedUrl);
+          const newHistory = [{ id: docRef.id, data: resolvedUrl, title, ...(carriedMemo ? { memo: carriedMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
           return newHistory.slice(0, 100);
         });
         
-        if (isUrl(data)) {
-          showNotification(`URLを読み取りました`, 'success', true, data);
+        if (scannedIsUrl) {
+          showNotification(`URLを読み取りました`, 'success', true, resolvedUrl);
         } else {
-          showNotification(`QRコードを読み取りました: ${data}`, 'success');
+          showNotification(`QRコードを読み取りました: ${resolvedUrl}`, 'success');
         }
       } else if (user && !db) {
         // Firebaseが利用できない場合、ローカルのみに保存（重複削除）
         setHistory(prevHistory => {
-          const existingMemo = prevHistory.find(item => item.data === data)?.memo;
-          const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, data);
-          const newHistory = [{ id: Date.now().toString(), data, ...(existingMemo ? { memo: existingMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
+          const existingMemo = prevHistory.find(item => item.data === resolvedUrl)?.memo;
+          const historyWithoutDuplicates = removeDuplicateFromLocalHistory(prevHistory, resolvedUrl);
+          const newHistory = [{ id: Date.now().toString(), data: resolvedUrl, ...(title ? { title } : {}), ...(existingMemo ? { memo: existingMemo } : {}), timestamp: new Date() }, ...historyWithoutDuplicates];
           return newHistory.slice(0, 100);
         });
-        if (isUrl(data)) {
-          showNotification(`URLを読み取りました（ローカル保存）`, 'info', true, data);
+        if (scannedIsUrl) {
+          showNotification(`URLを読み取りました（ローカル保存）`, 'info', true, resolvedUrl);
         } else {
-          showNotification(`QRコードを読み取りました: ${data}（ローカル保存）`, 'info');
+          showNotification(`QRコードを読み取りました: ${resolvedUrl}（ローカル保存）`, 'info');
         }
       } else {
-        if (isUrl(data)) {
-          showNotification(`URLを読み取りました（履歴保存なし）`, 'warning', true, data);
+        if (scannedIsUrl) {
+          showNotification(`URLを読み取りました（履歴保存なし）`, 'warning', true, resolvedUrl);
         } else {
-          showNotification(`QRコードを読み取りました: ${data}（履歴保存なし）`, 'warning');
+          showNotification(`QRコードを読み取りました: ${resolvedUrl}（履歴保存なし）`, 'warning');
         }
       }
     } catch (e) {
@@ -546,7 +535,7 @@ export default function HomePage() {
     } finally {
       isProcessingScanRef.current = false;
     }
-  }, [user, showNotification]);
+  }, [user, showNotification, resolveUrlMetadata]);
 
   const handleLogout = async () => {
     try {
@@ -631,32 +620,35 @@ export default function HomePage() {
           </div>
         )}
         <h1 className="text-3xl font-bold mb-4">QuickPick (デモモード)</h1>
-        <div className="flex gap-4 mb-4">
+        <div className="flex flex-wrap gap-2 mb-4">
           <button
             onClick={() => setShowScanner(true)}
-            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap"
           >
-            QRコードをスキャン
+            <span className="sm:hidden">QR</span>
+            <span className="hidden sm:inline">QRコードをスキャン</span>
           </button>
           <button
             onClick={() => setShowUrlInput(true)}
-            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap"
           >
-            URLを追加
+            <span className="sm:hidden">URL</span>
+            <span className="hidden sm:inline">URLを追加</span>
           </button>
           <button
             onClick={() => setDeleteMode(!deleteMode)}
-            className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out ${
+            className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
               deleteMode 
                 ? 'bg-red-500 hover:bg-red-700 text-white' 
                 : 'bg-gray-500 hover:bg-gray-700 text-white'
             }`}
           >
-            {deleteMode ? '削除モード終了' : '削除モード'}
+            <span className="sm:hidden">削除</span>
+            <span className="hidden sm:inline">{deleteMode ? '削除モード終了' : '削除モード'}</span>
           </button>
           <button
             onClick={() => setShowTrashOnly(!showTrashOnly)}
-            className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out ${
+            className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
               showTrashOnly
                 ? 'bg-amber-500 hover:bg-amber-700 text-white'
                 : 'bg-slate-500 hover:bg-slate-700 text-white'
@@ -807,16 +799,16 @@ export default function HomePage() {
           )}
         </div>
 
-        <div className="flex gap-4 mt-8">
+        <div className="flex flex-wrap gap-2 mt-8">
           <button
             onClick={() => router.push('/login')}
-            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap"
           >
             ログイン画面へ
           </button>
           <button
             onClick={() => setDeleteMode(!deleteMode)}
-            className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out ${
+            className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
               deleteMode 
                 ? 'bg-red-500 hover:bg-red-700 text-white' 
                 : 'bg-gray-500 hover:bg-gray-700 text-white'
@@ -826,7 +818,7 @@ export default function HomePage() {
           </button>
           <button
             onClick={() => setShowTrashOnly(!showTrashOnly)}
-            className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out ${
+            className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
               showTrashOnly
                 ? 'bg-amber-500 hover:bg-amber-700 text-white'
                 : 'bg-slate-500 hover:bg-slate-700 text-white'
@@ -880,32 +872,35 @@ export default function HomePage() {
       )}
       
       <h1 className="text-3xl font-bold mb-4">ようこそ、{user.displayName || user.email}さん！</h1>
-      <div className="flex gap-4 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4">
         <button
           onClick={() => setShowScanner(true)}
-          className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+          className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap"
         >
-          QRコードをスキャン
+          <span className="sm:hidden">QR</span>
+          <span className="hidden sm:inline">QRコードをスキャン</span>
         </button>
         <button
           onClick={() => setShowUrlInput(true)}
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap"
         >
-          URLを追加
+          <span className="sm:hidden">URL</span>
+          <span className="hidden sm:inline">URLを追加</span>
         </button>
         <button
           onClick={() => setDeleteMode(!deleteMode)}
-          className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out ${
+          className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
             deleteMode 
               ? 'bg-red-500 hover:bg-red-700 text-white' 
               : 'bg-gray-500 hover:bg-gray-700 text-white'
           }`}
         >
-          {deleteMode ? '削除モード終了' : '削除モード'}
+          <span className="sm:hidden">削除</span>
+          <span className="hidden sm:inline">{deleteMode ? '削除モード終了' : '削除モード'}</span>
         </button>
         <button
           onClick={() => setShowTrashOnly(!showTrashOnly)}
-          className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out ${
+          className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
             showTrashOnly
               ? 'bg-amber-500 hover:bg-amber-700 text-white'
               : 'bg-slate-500 hover:bg-slate-700 text-white'
@@ -1056,16 +1051,16 @@ export default function HomePage() {
         )}
       </div>
 
-      <div className="flex gap-4 mt-8">
+      <div className="flex flex-wrap gap-2 mt-8">
         <button
           onClick={handleLogout}
-          className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+          className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap"
         >
           ログアウト
         </button>
         <button
           onClick={() => setDeleteMode(!deleteMode)}
-          className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out ${
+          className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
             deleteMode 
               ? 'bg-red-500 hover:bg-red-700 text-white' 
               : 'bg-gray-500 hover:bg-gray-700 text-white'
@@ -1075,7 +1070,7 @@ export default function HomePage() {
         </button>
         <button
           onClick={() => setShowTrashOnly(!showTrashOnly)}
-          className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out ${
+          className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
             showTrashOnly
               ? 'bg-amber-500 hover:bg-amber-700 text-white'
               : 'bg-slate-500 hover:bg-slate-700 text-white'
