@@ -569,6 +569,11 @@ export default function HomePage() {
     }
   };
 
+  const handleToggleTrash = () => {
+    setShowTrashOnly((current) => !current);
+    setDeleteMode(false);
+  };
+
   const displayedHistory = history.filter((item) => (showTrashOnly ? item.deleted === true : item.deleted !== true));
 
   if (loading) {
@@ -635,19 +640,21 @@ export default function HomePage() {
             <span className="sm:hidden">URL</span>
             <span className="hidden sm:inline">URLを追加</span>
           </button>
+          {!showTrashOnly && (
+            <button
+              onClick={() => setDeleteMode(!deleteMode)}
+              className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
+                deleteMode
+                  ? 'bg-red-500 hover:bg-red-700 text-white'
+                  : 'bg-gray-500 hover:bg-gray-700 text-white'
+              }`}
+            >
+              <span className="sm:hidden">削除</span>
+              <span className="hidden sm:inline">{deleteMode ? '削除モード終了' : '削除モード'}</span>
+            </button>
+          )}
           <button
-            onClick={() => setDeleteMode(!deleteMode)}
-            className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
-              deleteMode 
-                ? 'bg-red-500 hover:bg-red-700 text-white' 
-                : 'bg-gray-500 hover:bg-gray-700 text-white'
-            }`}
-          >
-            <span className="sm:hidden">削除</span>
-            <span className="hidden sm:inline">{deleteMode ? '削除モード終了' : '削除モード'}</span>
-          </button>
-          <button
-            onClick={() => setShowTrashOnly(!showTrashOnly)}
+            onClick={handleToggleTrash}
             className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
               showTrashOnly
                 ? 'bg-amber-500 hover:bg-amber-700 text-white'
@@ -806,18 +813,20 @@ export default function HomePage() {
           >
             ログイン画面へ
           </button>
+          {!showTrashOnly && (
+            <button
+              onClick={() => setDeleteMode(!deleteMode)}
+              className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
+                deleteMode
+                  ? 'bg-red-500 hover:bg-red-700 text-white'
+                  : 'bg-gray-500 hover:bg-gray-700 text-white'
+              }`}
+            >
+              {deleteMode ? '削除モード終了' : '削除モード'}
+            </button>
+          )}
           <button
-            onClick={() => setDeleteMode(!deleteMode)}
-            className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
-              deleteMode 
-                ? 'bg-red-500 hover:bg-red-700 text-white' 
-                : 'bg-gray-500 hover:bg-gray-700 text-white'
-            }`}
-          >
-            {deleteMode ? '削除モード終了' : '削除モード'}
-          </button>
-          <button
-            onClick={() => setShowTrashOnly(!showTrashOnly)}
+            onClick={handleToggleTrash}
             className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
               showTrashOnly
                 ? 'bg-amber-500 hover:bg-amber-700 text-white'
@@ -887,19 +896,21 @@ export default function HomePage() {
           <span className="sm:hidden">URL</span>
           <span className="hidden sm:inline">URLを追加</span>
         </button>
+        {!showTrashOnly && (
+          <button
+            onClick={() => setDeleteMode(!deleteMode)}
+            className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
+              deleteMode
+                ? 'bg-red-500 hover:bg-red-700 text-white'
+                : 'bg-gray-500 hover:bg-gray-700 text-white'
+            }`}
+          >
+            <span className="sm:hidden">削除</span>
+            <span className="hidden sm:inline">{deleteMode ? '削除モード終了' : '削除モード'}</span>
+          </button>
+        )}
         <button
-          onClick={() => setDeleteMode(!deleteMode)}
-          className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
-            deleteMode 
-              ? 'bg-red-500 hover:bg-red-700 text-white' 
-              : 'bg-gray-500 hover:bg-gray-700 text-white'
-          }`}
-        >
-          <span className="sm:hidden">削除</span>
-          <span className="hidden sm:inline">{deleteMode ? '削除モード終了' : '削除モード'}</span>
-        </button>
-        <button
-          onClick={() => setShowTrashOnly(!showTrashOnly)}
+          onClick={handleToggleTrash}
           className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
             showTrashOnly
               ? 'bg-amber-500 hover:bg-amber-700 text-white'
@@ -1058,18 +1069,20 @@ export default function HomePage() {
         >
           ログアウト
         </button>
+        {!showTrashOnly && (
+          <button
+            onClick={() => setDeleteMode(!deleteMode)}
+            className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
+              deleteMode
+                ? 'bg-red-500 hover:bg-red-700 text-white'
+                : 'bg-gray-500 hover:bg-gray-700 text-white'
+            }`}
+          >
+            {deleteMode ? '削除モード終了' : '削除モード'}
+          </button>
+        )}
         <button
-          onClick={() => setDeleteMode(!deleteMode)}
-          className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
-            deleteMode 
-              ? 'bg-red-500 hover:bg-red-700 text-white' 
-              : 'bg-gray-500 hover:bg-gray-700 text-white'
-          }`}
-        >
-          {deleteMode ? '削除モード終了' : '削除モード'}
-        </button>
-        <button
-          onClick={() => setShowTrashOnly(!showTrashOnly)}
+          onClick={handleToggleTrash}
           className={`font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out whitespace-nowrap ${
             showTrashOnly
               ? 'bg-amber-500 hover:bg-amber-700 text-white'
