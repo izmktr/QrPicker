@@ -51,6 +51,7 @@ export default function HomePage() {
   const [showTrashOnly, setShowTrashOnly] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInput, setUrlInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const isProcessingScanRef = useRef(false);
   const lastScanRef = useRef<{ data: string; timestamp: number } | null>(null);
 
@@ -574,7 +575,15 @@ export default function HomePage() {
     setDeleteMode(false);
   };
 
-  const displayedHistory = history.filter((item) => (showTrashOnly ? item.deleted === true : item.deleted !== true));
+  // 検索キーワード（スペース区切りでAND検索）
+  const searchKeywords = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+
+  const displayedHistory = history.filter((item) => {
+    if (showTrashOnly ? item.deleted !== true : item.deleted === true) return false;
+    if (searchKeywords.length === 0) return true;
+    const target = `${item.data} ${item.title || ''} ${item.memo || ''}`.toLowerCase();
+    return searchKeywords.every((keyword) => target.includes(keyword));
+  });
 
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
@@ -705,8 +714,31 @@ export default function HomePage() {
 
         <div className="w-full max-w-6xl bg-white rounded-lg shadow-md p-4">
           <h2 className="text-xl font-bold mb-4">読み取り履歴</h2>
+          <div className="relative mb-4">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">🔍</span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="履歴を検索（URL・タイトル・メモ）"
+              className="w-full p-2 pl-9 pr-9 border border-gray-300 rounded-lg text-sm"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                title="検索をクリア"
+              >
+                ✕
+              </button>
+            )}
+          </div>
           {displayedHistory.length === 0 ? (
-            <p className="text-gray-600">{showTrashOnly ? 'ゴミ箱は空です。' : '履歴はありません。'}</p>
+            <p className="text-gray-600">
+              {searchKeywords.length > 0
+                ? '検索条件に一致する履歴はありません。'
+                : showTrashOnly ? 'ゴミ箱は空です。' : '履歴はありません。'}
+            </p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayedHistory.map((item) => (
@@ -961,8 +993,31 @@ export default function HomePage() {
 
       <div className="w-full max-w-6xl bg-white rounded-lg shadow-md p-4">
         <h2 className="text-xl font-bold mb-4">読み取り履歴</h2>
+        <div className="relative mb-4">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">🔍</span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="履歴を検索（URL・タイトル・メモ）"
+            className="w-full p-2 pl-9 pr-9 border border-gray-300 rounded-lg text-sm"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              title="検索をクリア"
+            >
+              ✕
+            </button>
+          )}
+        </div>
         {displayedHistory.length === 0 ? (
-          <p className="text-gray-600">{showTrashOnly ? 'ゴミ箱は空です。' : '履歴はありません。'}</p>
+          <p className="text-gray-600">
+            {searchKeywords.length > 0
+              ? '検索条件に一致する履歴はありません。'
+              : showTrashOnly ? 'ゴミ箱は空です。' : '履歴はありません。'}
+          </p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {displayedHistory.map((item) => (
